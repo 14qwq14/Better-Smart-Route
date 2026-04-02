@@ -1,0 +1,33 @@
+{
+	"schema_version": 3,
+	"highlight_type": "One",
+	"path_configs": [
+		{
+			"name": "Safe (Green)",
+			"color": "#00FF00",
+			"priority": 100,
+			"enabled": true,
+			"scoring_weights": {
+				"Elite": 0
+			}
+		},
+		{
+			"name": "Aggressive (Red)",
+			"color": "#FF0000",
+			"priority": 50,
+			"enabled": true,
+			"scoring_weights": {
+				"Elite": 15
+			}
+		},
+		{
+			"name": "Question marks (Yellow)",
+			"color": "#FFFF00",
+			"priority": 75,
+			"enabled": true,
+			"scoring_weights": {
+				"Unknown": 15
+			}
+		}
+	]
+}
