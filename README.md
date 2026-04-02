@@ -222,7 +222,3 @@ If the config file is missing or invalid, default path configs are used.
 
 - Initial release
 - Support for game versions v0.98.3 and v0.99
-
-```
-
-```
