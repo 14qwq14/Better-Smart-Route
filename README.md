@@ -2,118 +2,115 @@
   <a href="README.md">English</a> | <a href="README_ZH.md">简体中文</a>
 </div>
 
-# RouteSuggest - Slay the Spire 2 Mod
+# RouteSuggest - 杀戮尖塔2 (Slay the Spire 2) 模组
 
 ![](screenshot.png)
 
-A mod for Slay the Spire 2 that suggests the optimal path through the map and highlights it on the map screen.
+一个《杀戮尖塔2》的模组，用于为你计算地图上的最佳路线，并在地图界面上将其高亮显示。
 
-_Based on the original STS2RouteSuggest mod by Jiajie Chen @jiegec, modified to use a Dynamic Programming algorithm and new target-based route matching._
+_基于 Jiajie Chen @jiegec 的原版 STS2RouteSuggest 模组，修改为使用动态规划 (Dynamic Programming) 算法以及全新的基于目标的路线匹配。_
 
-**Supported game versions:** v0.99.1 and v0.100.0 (public beta)
+**支持的游戏版本：** v0.99.1 和 v0.100.0 (公开测试版)
 
-## Features
+## 功能特点
 
-- **Advanced Pathing**: Uses a high-performance Dynamic Programming (DP) algorithm for optimal speed and matched closest path robustness.
-- **Visual highlighting** with three default routes:
-  - **Green**: Safe path (avoids Elites)
-  - **Red**: Aggressive path (prioritizes Elites)
-  - **Yellow**: Question marks path (prioritizes Unknown locations)
-- **Smart scoring**: Configurable target-based weights for different playstyles.
-- **GUI Configuration**: Full in-game configuration via ModConfig (optional)
-- **Manual Configuration**: Direct JSON configuration for advanced users
+- **高级寻路**：使用高性能的动态规划 (DP) 算法，实现最佳计算速度和强大的匹配最近路线能力。
+- **视觉高亮**：默认提供三条路线高亮：
+  - **绿色**：安全路线 (避开精英)
+  - **红色**：激进路线 (优先挑战精英)
+  - **黄色**：问号路线 (优先前往未知地点)
+- **智能评分**：可以为不同的游玩风格配置基于目标的权重。
+- **GUI 配置**：可通过 ModConfig 在游戏内进行全面配置（可选）。
+- **手动配置**：高级用户可以直接进行 JSON 配置。
 
-## Installation
+## 安装指南
 
-1. Download the latest release from [GitHub releases](https://github.com/jiegec/STS2RouteSuggest/releases) or [Nexus mods](https://www.nexusmods.com/slaythespire2/mods/54)
-2. Extract the mod files to your Slay the Spire 2 mods folder (`mods` folder should reside in the same folder as the game executable):
+1. 从 [GitHub Releases](https://github.com/jiegec/STS2RouteSuggest/releases) 或 [Nexus mods](https://www.nexusmods.com/slaythespire2/mods/54) 下载最新版本。
+2. 将模组文件解压到你的《杀戮尖塔2》 mods 文件夹中（`mods` 文件夹应与游戏可执行文件位于同一目录）：
    - **Windows**: `C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\`
    - **macOS**: `~/Library/Application\ Support/Steam/steamapps/common/Slay\ the\ Spire\ 2/SlayTheSpire2.app/Contents/MacOS/mods/`
    - **Linux**: `~/.steam/steam/steamapps/common/Slay\ the\ Spire\ 2/mods`
-3. Launch Slay the Spire 2 - the mod will load automatically
+3. 启动《杀戮尖塔2》 - 模组将自动加载。
 
-## Building from Source
+## 源码编译
 
-### Prerequisites
+### 环境要求
 
-- .NET 9.0 SDK or later
-- Godot 4.5.1 with Mono support
-- Slay the Spire 2 (for the sts2.dll reference)
+- .NET 9.0 SDK 或更高版本
+- Godot 4.5.1（支持 Mono）
+- 《杀戮尖塔2》（需要引用 sts2.dll）
 
-### Build Steps
+### 编译步骤
 
 ```bash
-# Clone the repository
+# 克隆仓库
 git clone https://github.com/jiegec/STS2RouteSuggest
 cd RouteSuggest
 
-# Build the mod
+# 编译模组
 ./build.sh
 
-# Install the mod
+# 安装模组
 ./install.sh
 ```
 
-uses a Dynamic Programming (DP) algorithm to calculate optimal paths based on target values and scoring. This provides better performance and matched closest path robustness compared to basic search methods.
+使用动态规划 (DP) 算法根据目标值和评分计算最佳路径。相较于基础的搜索方法，这提供了更好的性能和稳健的最优路径匹配。
 
-By default, the following three target-based routes are calculated:
+默认情况下，会计算以下三条基于目标的路线：
 
-### Safe (Green)
+### 安全 (绿色)
 
-Minimizes tough encounters for a safer journey:
+尽可能减少艰难的战斗，让旅程更安全：
 
-- **Elite**: 0 weight (avoids Elites)
+- **精英 (Elite)**: 权重 0 (避开精英)
 
-### Aggressive (Red)
+### 激进 (红色)
 
-Prioritizes combat rewards and high-value targets:
+优先考虑战斗奖励和高价值目标：
 
-- **Elite**: +15 weight
+- **精英 (Elite)**: 权重 +15
 
-### Question marks (Yellow)
+### 问号 (黄色)
 
-Prioritizes map exploration and random events:
+优先考虑地图探索和随机事件：
 
-- **Unknown**: +15 weight
+- **未知 (Unknown)**: 权重 +15
 
-When paths share an edge, they overlap on the map screen according to rendering priority |
-| **Boss** | 0 | Final destination |
+当路线共享同一条边时，它们会根据渲染优先级在地图界面上重叠显示，或者混合显示为其他颜色（如亮金色）。
 
-When both paths share an edge, it appears in gold.
+## 配置说明
 
-## Configuration
+### GUI 游戏内设置 (推荐)
 
-### GUI Settings (Recommended)
+RouteSuggest 可以选择集成 [**ModConfig**](https://github.com/xhyrzldf/ModConfig-STS2)。安装 ModConfig 后，RouteSuggest 会出现在游戏的 **设置 > 模组 (Mods)** 菜单中。如果没有安装 ModConfig，模组仍然可以正常工作，但你需要手动编辑 JSON 配置文件（见下文）。
 
-RouteSuggest optionally integrates with [**ModConfig**](https://github.com/xhyrzldf/ModConfig-STS2). When ModConfig is installed, RouteSuggest appears in the game's **Settings > Mods** menu. If ModConfig is not installed, the mod still works normally, but you'll need to edit the JSON configuration file manually (see below).
+通过 ModConfig GUI，你可以配置：
 
-With ModConfig GUI, you can:
+- **通用设置**:
+  - **高亮类型 (Highlight Type)**: 选择高亮一条最佳路径还是所有最高分的路径。
+    - **单条 (One)**: 从最优路径中挑选一条。
+    - **全部 (All)**: 高亮所有并列最高分的路径。
+- **配置每条路线**:
+  - **启用 (Enabled)**: 切换以启用/禁用此路线（禁用的路线不会被计算或显示）。
+  - **名称 (Name)**: 路线的标识名。
+  - **颜色 (Color)**: 输入十六进制颜色代码（例如 `#FFD700` 表示金色，`#FF0000` 表示红色）。
+  - **优先级 (Priority)**: 设置渲染优先级的滑块（数值越高，重叠时显示在越上层）。
+  - **评分权重 (Scoring Weights)**: 设置每种房间类型权重的滑块。
+    - 正数 = 偏好该房间类型
+    - 负数 = 避开该房间类型
+    - 0 = 中立
+- **添加新路线**: 拖动滑块添加新路线（滑到 1）。
+- **移除路线**: 每条路线都有一个移除滑块（0=保留，1=移除）。
+- **重置为默认值**: 将所有路线重置为默认配置的滑块。
+- **修改会自动保存** 到配置文件路径（详情见下文）。
 
-- **General Settings**:
-  - **Highlight Type**: Choose to highlight one optimal path or all paths with optimal score
-    - **One**: Pick one path from among optimal paths
-    - **All**: Highlight all paths tied for the best score
-- **Configure each path**:
-  - **Enabled**: Toggle to enable/disable this path (disabled paths are not calculated or shown)
-  - **Name**: Identifier for the path
-  - **Color**: Enter hex color code (e.g., `#FFD700` for gold, `#FF0000` for red)
-  - **Priority**: Slider to set rendering priority (higher = renders on top when paths overlap)
-  - **Scoring Weights**: Sliders for each room type
-    - Positive = prefer this room type
-    - Negative = avoid this room type
-    - Zero = neutral
-- **Add New Path**: Slider to add a new path (slide to 1)
-- **Remove Path**: Each path has a slider to remove it (0=keep, 1=remove)
-- **Reset to Defaults**: Slider to reset all paths to default configuration
-- **Changes are saved automatically** to the config file location (see below for details)
+### 手动 JSON 配置
 
-### Manual JSON Configuration
+你也可以通过直接编辑 `RouteSuggestConfig.json` 来手动自定义路线类型：
 
-Alternatively, you can customize the path types by manually editing `RouteSuggestConfig.json`:
-
-- **Existing users**: If you already have a config file at `mods/RouteSuggestConfig.json`, it will continue to be used (no migration needed)
-- **New users**: The config will be saved alongside `RouteSuggest.dll` (found recursively in the mods folder). If the DLL cannot be found, it falls back to `mods/RouteSuggestConfig.json`
-- **Note**: Config is saved to the same location where it was read from. The mod will not automatically migrate the config file to a different location.
+- **现有用户**: 如果你已经在 `mods/RouteSuggestConfig.json` 拥有配置文件，它将被继续使用（不需要迁移）。
+- **新用户**: 配置文件将会和 `RouteSuggest.dll` 保存在一起（在 mods 文件夹中递归查找）。如果找不到 DLL，将退回到 `mods/RouteSuggestConfig.json`。
+- **注意**: 配置会保存到它被读取的同一位置。模组不会自动将配置文件迁移到其他位置。
 
 ```json
 {
@@ -151,74 +148,50 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 }
 ```
 
-- **enabled**: Set to `false` to disable a path (disabled paths are not calculated or shown)
-- **color**: Hex color code (e.g., `#FFD700` for gold, `#FF0000` for red)
-- **priority**: Higher values render on top when paths overlap
-- **scoring_weights**: Integer values for each room type (positive = preferred, negative = avoid)
+- **enabled**: 设置为 `false` 可禁用路线（被禁用的路线不会计算评分，也不会显示在地图上）。
+- **color**: 十六进制颜色代码（如 `#FFD700` 代表金色，`#FF0000` 代表红色）。
+- **priority**: 优先级，数字越大在路线重叠时渲染在越上层。
+- **scoring_weights**: 各类房间的整数权重（正数代表倾向前往，负数代表避开）。
 
-Available room types: `RestSite`, `Treasure`, `Shop`, `Monster`, `Elite`, `Unknown`, `Boss`
+可选的房间类型包含: `RestSite` (休息处), `Treasure` (宝箱), `Shop` (商店), `Monster` (怪物), `Elite` (精英), `Unknown` (未知), `Boss` (首领)
 
-If the config file is missing or invalid, default path configs are used.
+如果配置文件缺失或无效，将使用默认的路线配置。
 
-## Changelog
+## 更新日志
 
 ### v1.8.0
 
-- Improved ModConfig UI: changed sliders to toggles for easier configuration
-- Added enable/disable option for each path configuration
-  - Disabled paths are not calculated or shown on the map
-  - Available in both ModConfig GUI and JSON config
-- Tested on game beta v0.100.0
+- 优化 ModConfig UI：将滑块改为开关，配置更简便。
+- 为各个路线配置添加了 启用/禁用 选项。
+  - 被禁用的路线不会进行计算并在地图上显示。
+  - 可同时在 ModConfig GUI 和 JSON 配置文件中使用此功能。
+- 在游戏测试版 v0.100.0 上进行了测试。
 
 ### v1.7.0
 
-- Set `affects_gameplay` to false since this mod is visual-only and does not impact gameplay
+- 将 `affects_gameplay` 设置为 false，因为这是一个纯视觉模组，不影响游戏玩法内容。
 
 ### v1.6.0
 
-- Improved config file path resolution
-  - Based on user feedback: when there are many mods in the folder, having the config file at the root level becomes messy
-  - If `mods/RouteSuggestConfig.json` exists, continue using it (no migration needed)
-  - Otherwise, find `RouteSuggest.dll` recursively and save config alongside it
-  - Fallback to `mods/RouteSuggestConfig.json` if DLL not found
-  - Config is saved to the same location where it was read from (no automatic migration)
+- 优化了配置文件的路径解析。
+  - 根据用户反馈：如果 mods 文件夹中模组很多，将配置文件放在根目录会显得非常混乱。
+  - 如果 `mods/RouteSuggestConfig.json` 已经存在，则继续使用它（无需改变）。
+  - 否则，递归查找 `RouteSuggest.dll` 并将配置保存在它的旁边。
+  - 如果未找到 DLL，则回退为 `mods/RouteSuggestConfig.json`。
+  - 配置保存的位置与读取的位置相同（不进行自动迁移）。
 
 ### v1.5.0
 
-- Add HighlightType option to control how many paths to highlight
-  - **One**: Pick one path from among optimal paths
-  - **All**: Highlight all paths with the optimal best score
-  - Available in both ModConfig GUI and JSON config
+- 增加 HighlightType (高亮类型) 选项以控制要高亮显示几条路线。
+  - **One**: 从所有最优路径中仅挑选一条显示。
+  - **All**: 高亮显示所有并列最高分的路线。
+  - 此选项可以在 ModConfig GUI 和 JSON 配置中使用。
 
 ### v1.4.0
 
-- Added GUI Settings integration with ModConfig for in-game path configuration
-  - Configure name, color (hex input), priority, and scoring weights via GUI
-  - Add/remove custom path types
-  - Changes saved to JSON automatically
-  - Use slider instead of button for now
-  - I18n support for English and Simplified Chinese
-- Tested on game beta v0.99.1
-
-### v1.3.0
-
-- Tuned the default weights for safe/aggressive paths
-- Added configurable paths via `mods/RouteSuggestConfig.json`
-- Path configs can be customized with custom colors, priorities, and scoring weights
-- Falls back to defaults if config file is missing or invalid
-
-### v1.2.0
-
-- Fixed path highlighting when entering a new act
-
-### v1.1.0
-
-- Added dual path mode: safe path (gold) and aggressive path (red)
-- Safe path minimizes combat encounters
-- Aggressive path prioritizes Elite (+2), Monster (+1), and Unknown (+1) rooms
-- Overlapping edges shown in gold
-
-### v1.0.0
-
-- Initial release
-- Support for game versions v0.98.3 and v0.99
+- 添加了与 ModConfig 集成的游戏内 GUI 设置功能，用于在游戏中进行配置。
+  - 可通过 GUI 配置路线名称、颜色（16位制输入）、优先级以及各类房间的评分权重。
+  - 添加/移除自定义类型的路线。
+  - 更改内容会自动保存至 JSON。
+  - 增加英语和简体中文的国际化支持。
+- 在游戏测试版 v0.99.1 上进行了测试。
