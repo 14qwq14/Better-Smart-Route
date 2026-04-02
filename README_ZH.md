@@ -1,3 +1,7 @@
+<div align="center">
+  <a href="README.md">English</a> | <a href="README_ZH.md">简体中文</a>
+</div>
+
 # RouteSuggest - 杀戮尖塔2 (Slay the Spire 2) 模组
 
 ![](screenshot.png)

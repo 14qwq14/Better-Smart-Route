@@ -1,3 +1,7 @@
+<div align="center">
+  <a href="README.md">English</a> | <a href="README_ZH.md">简体中文</a>
+</div>
+
 # RouteSuggest - Slay the Spire 2 Mod
 
 ![](screenshot.png)
@@ -113,37 +117,37 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 
 ```json
 {
-  "schema_version": 3,
-  "highlight_type": "One",
-  "path_configs": [
-    {
-      "name": "Safe (Green)",
-      "color": "#00FF00",
-      "priority": 100,
-      "enabled": true,
-      "scoring_weights": {
-        "Elite": 0
-      }
-    },
-    {
-      "name": "Aggressive (Red)",
-      "color": "#FF0000",
-      "priority": 50,
-      "enabled": true,
-      "scoring_weights": {
-        "Elite": 15
-      }
-    },
-    {
-      "name": "Question marks (Yellow)",
-      "color": "#FFFF00",
-      "priority": 75,
-      "enabled": true,
-      "scoring_weights": {
-        "Unknown": 15
-      }
-    }
-  ]
+	"schema_version": 3,
+	"highlight_type": "One",
+	"path_configs": [
+		{
+			"name": "Safe (Green)",
+			"color": "#00FF00",
+			"priority": 100,
+			"enabled": true,
+			"scoring_weights": {
+				"Elite": 0
+			}
+		},
+		{
+			"name": "Aggressive (Red)",
+			"color": "#FF0000",
+			"priority": 50,
+			"enabled": true,
+			"scoring_weights": {
+				"Elite": 15
+			}
+		},
+		{
+			"name": "Question marks (Yellow)",
+			"color": "#FFFF00",
+			"priority": 75,
+			"enabled": true,
+			"scoring_weights": {
+				"Unknown": 15
+			}
+		}
+	]
 }
 ```
 
@@ -218,4 +222,7 @@ If the config file is missing or invalid, default path configs are used.
 
 - Initial release
 - Support for game versions v0.98.3 and v0.99
+
+```
+
 ```
