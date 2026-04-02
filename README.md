@@ -117,17 +117,7 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
   "highlight_type": "One",
   "path_configs": [
     {
-      "name": "Safe",
-      "color": "#FFD700",
-      "priority": 100,
-      "enabled": true,
-      "scoring_weights": {
-        "RestSite": 1,
-        "Treasure": 1,
-        "Shop": 1,
-        "Monster": -1,
-        "Elite": -2
-      } (Green)",
+      "name": "Safe (Green)",
       "color": "#00FF00",
       "priority": 100,
       "enabled": true,
@@ -150,7 +140,14 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
       "priority": 75,
       "enabled": true,
       "scoring_weights": {
-        "Unknown": 15o `false` to disable a path (disabled paths are not calculated or shown)
+        "Unknown": 15
+      }
+    }
+  ]
+}
+```
+
+- **enabled**: Set to `false` to disable a path (disabled paths are not calculated or shown)
 - **color**: Hex color code (e.g., `#FFD700` for gold, `#FF0000` for red)
 - **priority**: Higher values render on top when paths overlap
 - **scoring_weights**: Integer values for each room type (positive = preferred, negative = avoid)
