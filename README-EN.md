@@ -24,7 +24,7 @@ _Based on the original STS2RouteSuggest mod by Jiajie Chen @jiegec, modified to 
 
 ## Installation
 
-1. Download the latest release from [GitHub releases](https://github.com/jiegec/STS2RouteSuggest/releases) or [Nexus mods](https://www.nexusmods.com/slaythespire2/mods/54)
+1. Download the latest release from [GitHub releases](https://github.com/14qwq14/Better-Smart-Route).
 2. Extract the mod files to your Slay the Spire 2 mods folder (`mods` folder should reside in the same folder as the game executable):
    - **Windows**: `C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\`
    - **macOS**: `~/Library/Application\ Support/Steam/steamapps/common/Slay\ the\ Spire\ 2/SlayTheSpire2.app/Contents/MacOS/mods/`
@@ -43,17 +43,14 @@ _Based on the original STS2RouteSuggest mod by Jiajie Chen @jiegec, modified to 
 
 ```bash
 # Clone the repository
-git clone https://github.com/jiegec/STS2RouteSuggest
-cd RouteSuggest
+git clone https://github.com/14qwq14/Better-Smart-Route
+cd Better-Smart-Route
 
 # Build the mod
-./build.sh
-
-# Install the mod
-./install.sh
+./build.ps1
 ```
 
-uses a Dynamic Programming (DP) algorithm to calculate optimal paths based on target values and scoring. This provides better performance and matched closest path robustness compared to basic search methods.
+RouteSuggest uses a Dynamic Programming (DP) algorithm to calculate optimal paths based on target values and scoring. This provides better performance and matched closest path robustness compared to basic search methods.
 
 By default, the following three target-based routes are calculated:
 
@@ -75,10 +72,7 @@ Prioritizes map exploration and random events:
 
 - **Unknown**: +15 weight
 
-When paths share an edge, they overlap on the map screen according to rendering priority |
-| **Boss** | 0 | Final destination |
-
-When both paths share an edge, it appears in gold.
+When paths share an edge, they overlap on the map screen according to rendering priority, or blend into other colors (like bright gold).
 
 ## Configuration
 
