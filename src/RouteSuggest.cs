@@ -760,7 +760,20 @@ public static class RouteSuggest
 
             if (!File.Exists(configPath))
             {
-                LogWithTimestamp($"Config file not found at {configPath}, using default path configs");
+                LogWithTimestamp($"Config file not found at {configPath}, generating default config.");
+                try
+                {
+                    string dir = Path.GetDirectoryName(configPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+                    SaveConfiguration();
+                }
+                catch (Exception ex)
+                {
+                    LogWithTimestamp($"Failed to generate default config: {ex.Message}");
+                }
                 return;
             }
 
@@ -811,6 +824,10 @@ public static class RouteSuggest
             }
 
             LogWithTimestamp($"Successfully loaded {PathConfigs.Count} path configs from {configPath}");
+        }
+        catch (JsonException jsonEx)
+        {
+            LogWithTimestamp($"JSON format error in config file: {jsonEx.Message}. Please check for syntax errors. Using defaults.");
         }
         catch (Exception ex)
         {
