@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -54,6 +54,7 @@ public class PathConfig
     {
         if (path == null) return -9999;
 
+        // 统一计算路径中各类节点出现的次数
         var counts = new Dictionary<MapPointType, int>();
         foreach (var point in path)
         {
@@ -61,12 +62,13 @@ public class PathConfig
             counts[point.PointType]++;
         }
 
+        // 以误差平方和为代价计算负分。分数越高（最大为0）代表越符合配置参数期待�?
         int score = 0;
         foreach (var kvp in TargetCounts)
         {
             counts.TryGetValue(kvp.Key, out int actual);
             int diff = Math.Abs(kvp.Value - actual);
-            score -= (diff * diff); // Negative penalty
+            score -= (diff * diff); // Negative penalty (差值平方作为惩罚，有效放大了单类节点数量严重不符的情况)
         }
         return score;
     }
@@ -118,7 +120,7 @@ public static class RouteSuggest
     {
         new PathConfig
         {
-            Name = "Safe (Green)",
+            Name = "Safe (Green) / 安全",
             Color = new Color(0f, 1f, 0f, 1f), // Green
             Priority = 100,
             TargetCounts = new Dictionary<MapPointType, int>
@@ -128,7 +130,17 @@ public static class RouteSuggest
         },
         new PathConfig
         {
-            Name = "Question marks (Yellow)",
+            Name = "Aggressive (Red) / 激�?,
+            Color = new Color(1f, 0f, 0f, 1f), // Red
+            Priority = 50,
+            TargetCounts = new Dictionary<MapPointType, int>
+            {
+                { MapPointType.Elite, 15 }
+            }
+        },
+        new PathConfig
+        {
+            Name = "Question marks (Yellow) / 问号",
             Color = new Color(1f, 1f, 0f, 1f), // Yellow
             Priority = 75,
             TargetCounts = new Dictionary<MapPointType, int>
@@ -138,12 +150,28 @@ public static class RouteSuggest
         },
         new PathConfig
         {
-            Name = "Aggressive (Red)",
-            Color = new Color(1f, 0f, 0f, 1f), // Red
-            Priority = 50,
+            Name = "Boss Rush (Purple) / 首领速�?,
+            Color = new Color(0.5f, 0f, 0.5f, 1f), // Purple
+            Priority = 120,
+            Enabled = false,
             TargetCounts = new Dictionary<MapPointType, int>
             {
-                { MapPointType.Elite, 15 }
+                { MapPointType.Elite, 15 },
+                { MapPointType.RestSite, 0 },
+                { MapPointType.Monster, 0 }
+            }
+        },
+        new PathConfig
+        {
+            Name = "Max Rewards (Gold) / 最大收�?,
+            Color = new Color(1f, 0.84f, 0f, 1f), // Gold
+            Priority = 90,
+            Enabled = false,
+            TargetCounts = new Dictionary<MapPointType, int>
+            {
+                { MapPointType.Elite, 15 },
+                { MapPointType.Treasure, 10 },
+                { MapPointType.Shop, 5 }
             }
         }
     };
@@ -268,7 +296,7 @@ public static class RouteSuggest
                 method.Invoke(null, new object[] { "RouteSuggest", $"path_{i}_priority", (float)config.Priority });
 
                 var roomTypes = new[] { MapPointType.RestSite, MapPointType.Treasure, MapPointType.Shop,
-                    MapPointType.Monster, MapPointType.Elite, MapPointType.Unknown, MapPointType.Boss };
+                    MapPointType.Monster, MapPointType.Elite, MapPointType.Unknown };
                 foreach (var roomType in roomTypes)
                 {
                     var weight = 0;
@@ -322,8 +350,8 @@ public static class RouteSuggest
             entries.Add(MakeEntry("__reset_default", "Reset to defaults",
                 GetConfigType("Toggle"),
                 defaultValue: true,
-                labels: new() { { "zhs", "重置为默认值" } },
-                descriptions: new() { { "en", "Toggle to reset all configurations to default" }, { "zhs", "点击以重置所有配置为默认值" } },
+                labels: new() { { "zhs", "重置为默认�? } },
+                descriptions: new() { { "en", "Toggle to reset all configurations to default" }, { "zhs", "点击以重置所有配置为默认�? } },
                 onChanged: (value) =>
                 {
                     if ((bool)value)
@@ -342,7 +370,7 @@ public static class RouteSuggest
                 defaultValue: HighlightType.One.ToString(),
                 options: new[] { "One", "All" },
                 labels: new() { { "zhs", "高亮类型" } },
-                descriptions: new() { { "en", "Pick one path from optimal paths (One) or highlight all optimal paths (All)" }, { "zhs", "从最优路径中选择一条 (One) 或高亮所有最优路径 (All)" } },
+                descriptions: new() { { "en", "Pick one path from optimal paths (One) or highlight all optimal paths (All)" }, { "zhs", "从最优路径中选择一�?(One) 或高亮所有最优路�?(All)" } },
                 onChanged: (value) =>
                 {
                     if (Enum.TryParse<HighlightType>((string)value, out var newType))
@@ -363,8 +391,8 @@ public static class RouteSuggest
             entries.Add(MakeEntry("__add_path", "Add New Path",
                 GetConfigType("Toggle"),
                 defaultValue: false,
-                labels: new() { { "zhs", "添加新路径" } },
-                descriptions: new() { { "en", "Toggle to add a new path configuration" }, { "zhs", "点击以添加新的路径配置" } },
+                labels: new() { { "zhs", "添加新路�? } },
+                descriptions: new() { { "en", "Toggle to add a new path configuration" }, { "zhs", "点击以添加新的路径配�? } },
                 onChanged: (value) =>
                 {
                     if ((bool)value)
@@ -454,8 +482,8 @@ public static class RouteSuggest
                 entries.Add(MakeEntry($"path_{i}_color", "Color (hex, e.g., #FFD700)",
                     GetConfigType("TextInput"),
                     defaultValue: $"#{defaultColor.ToHtml(false)}",
-                    labels: new() { { "zhs", "颜色 (十六进制, 如 #FFD700)" } },
-                    descriptions: new() { { "en", "Hex color code for path highlighting" }, { "zhs", "用于路径高亮的十六进制颜色代码" } },
+                    labels: new() { { "zhs", "颜色 (十六进制, �?#FFD700)" } },
+                    descriptions: new() { { "en", "Hex color code for path highlighting" }, { "zhs", "用于路径高亮的十六进制颜色代�? } },
                     onChanged: (value) =>
                     {
                         config.Color = ParseColor((string)value);
@@ -472,8 +500,8 @@ public static class RouteSuggest
                     GetConfigType("Slider"),
                     defaultValue: (float)defaultPriority,
                     min: 0, max: 200, step: 10, format: "F0",
-                    labels: new() { { "zhs", "优先级 (越高越靠前)" } },
-                    descriptions: new() { { "en", "Higher priority paths are rendered on top of lower priority paths" }, { "zhs", "优先级高的路径会覆盖优先级低的路径" } },
+                    labels: new() { { "zhs", "优先�?(越高越靠�?" } },
+                    descriptions: new() { { "en", "Higher priority paths are rendered on top of lower priority paths" }, { "zhs", "优先级高的路径会覆盖优先级低的路�? } },
                     onChanged: (value) =>
                     {
                         config.Priority = (int)(float)value;
@@ -486,7 +514,7 @@ public static class RouteSuggest
 
                 // Add weights for each room type
                 var roomTypes = new[] { MapPointType.RestSite, MapPointType.Treasure, MapPointType.Shop,
-                    MapPointType.Monster, MapPointType.Elite, MapPointType.Unknown, MapPointType.Boss };
+                    MapPointType.Monster, MapPointType.Elite, MapPointType.Unknown };
                 foreach (var roomType in roomTypes)
                 {
                     var weight = 0;
@@ -509,32 +537,32 @@ public static class RouteSuggest
                     switch (roomType)
                     {
                         case MapPointType.RestSite:
-                            roomLabels["zhs"] = "休息处";
+                            roomLabels["zhs"] = "休息�?;
                             roomDescriptions["zhs"] = "休息处房间的目标次数";
                             break;
                         case MapPointType.Treasure:
                             roomLabels["zhs"] = "宝箱";
-                            roomDescriptions["zhs"] = "宝箱房间的目标次数";
+                            roomDescriptions["zhs"] = "宝箱房间的目标次�?;
                             break;
                         case MapPointType.Shop:
                             roomLabels["zhs"] = "商店";
-                            roomDescriptions["zhs"] = "商店房间的目标次数";
+                            roomDescriptions["zhs"] = "商店房间的目标次�?;
                             break;
                         case MapPointType.Monster:
-                            roomLabels["zhs"] = "普通敌人";
+                            roomLabels["zhs"] = "普通敌�?;
                             roomDescriptions["zhs"] = "普通敌人房间的目标次数";
                             break;
                         case MapPointType.Elite:
                             roomLabels["zhs"] = "精英敌人";
-                            roomDescriptions["zhs"] = "精英敌人房间的目标次数";
+                            roomDescriptions["zhs"] = "精英敌人房间的目标次�?;
                             break;
                         case MapPointType.Unknown:
                             roomLabels["zhs"] = "未知";
-                            roomDescriptions["zhs"] = "未知房间的目标次数";
+                            roomDescriptions["zhs"] = "未知房间的目标次�?;
                             break;
                         case MapPointType.Boss:
                             roomLabels["zhs"] = "Boss";
-                            roomDescriptions["zhs"] = "Boss 房间的目标次数";
+                            roomDescriptions["zhs"] = "Boss 房间的目标次�?;
                             break;
                     }
 
@@ -1133,32 +1161,38 @@ public static class RouteSuggest
     {
         if (startPoint == null) return new List<List<MapPoint>>();
 
+        // 获取需要统计关注的房间类型（对于权重为0即未关注的房间，我们不需要记录在状态中以优化性能�?
         var trackedTypes = config.TargetCounts.Keys.ToList();
 
-        // DP state: Node -> Key (comma-separated counts) -> State
+        // 动态规划状�?(DP State): 节点 (Node) -> 状态标�?(Key, 用逗号分隔的各类房间数�? -> 状态对�?(包含前驱节点)
+        // 这样可以将在相同节点上、拥有相同已探索房间类型数量的路径合并，避免指数级爆�?(State space: O(V * C^k))
         var dp = new Dictionary<MapPoint, Dictionary<string, DpMemoState>>();
 
         var queue = new Queue<MapPoint>();
         var inQueue = new HashSet<MapPoint>();
 
+        // 初始化起点状�?
         queue.Enqueue(startPoint);
         inQueue.Add(startPoint);
 
         var startCounts = new int[trackedTypes.Count];
         int startIdx = trackedTypes.IndexOf(startPoint.PointType);
-        if (startIdx >= 0) startCounts[startIdx] = 1;
+        if (startIdx >= 0) startCounts[startIdx] = 1; // 如果起点是我们关注的房间类型，则数量 +1
 
+        // 将初始房间计数序列化为字符串标识作为当前状态的 Key
         string startKey = trackedTypes.Count > 0 ? string.Join(",", startCounts) : "0";
         dp[startPoint] = new Dictionary<string, DpMemoState>();
-        dp[startPoint][startKey] = new DpMemoState(); // Root has no predecessors
+        dp[startPoint][startKey] = new DpMemoState(); // 根节点没有前�?(Root has no predecessors)
 
         var bossNodes = new List<MapPoint>();
 
+        // 使用 BFS 进行层级遍历进行状态转移。由于地图总是向右推进(DAG)，BFS保证无后效�?
         while (queue.Count > 0)
         {
             var current = queue.Dequeue();
             inQueue.Remove(current);
 
+            // 记录遇到�?Boss 节点作为最终终�?
             if (current.PointType == MapPointType.Boss && !bossNodes.Contains(current))
             {
                 bossNodes.Add(current);
@@ -1168,6 +1202,7 @@ public static class RouteSuggest
 
             var currentStates = dp[current];
 
+            // 对所有相连的子节点进行状态转�?
             foreach (var child in current.Children)
             {
                 if (!dp.ContainsKey(child))
@@ -1177,11 +1212,15 @@ public static class RouteSuggest
 
                 int childIdx = trackedTypes.IndexOf(child.PointType);
 
+                // 遍历当前节点积累下来的所有有效状态历�?
                 foreach (var parentKey in currentStates.Keys)
                 {
+                    // 反序列化父节点的状态标识（即各类房间的累积经过数量�?
                     var parentCounts = trackedTypes.Count > 0 ? parentKey.Split(',').Select(int.Parse).ToArray() : new int[0];
+                    // 如果前往的子节点是受到关注统计的房间，则该项计数�?+1
                     if (childIdx >= 0 && parentCounts.Length > 0) parentCounts[childIdx]++;
 
+                    // 重新序列化得到前驱在子节点上的新状态标�?
                     string childKey = trackedTypes.Count > 0 ? string.Join(",", parentCounts) : "0";
 
                     if (!dp[child].ContainsKey(childKey))
@@ -1189,7 +1228,7 @@ public static class RouteSuggest
                         dp[child][childKey] = new DpMemoState();
                     }
 
-                    // Add current as predecessor
+                    // 记录从哪个父节点 (current)、带着什么状�?(parentKey) 转移而来的，用以后续回溯构建完整路径
                     var pred = (current, parentKey);
                     if (!dp[child][childKey].Predecessors.Contains(pred))
                     {
@@ -1197,6 +1236,7 @@ public static class RouteSuggest
                     }
                 }
 
+                // 将未入队的子节点入队，等待下一轮转�?
                 if (!inQueue.Contains(child))
                 {
                     queue.Enqueue(child);
@@ -1205,7 +1245,7 @@ public static class RouteSuggest
             }
         }
 
-        // Calculate scores at Boss nodes
+        // 遍历所�?Boss 节点的所有积累状态计算最终评分，找出最高分
         int bestScore = int.MinValue;
         var bestBossStates = new List<(MapPoint boss, string key)>();
 
@@ -1215,6 +1255,7 @@ public static class RouteSuggest
             {
                 foreach (var bossKey in dp[boss].Keys)
                 {
+                    // 对抵�?Boss 节点时的特定状态，计算其所有关卡总数与配置目标计数的曼哈顿误差平方和
                     var counts = trackedTypes.Count > 0 ? bossKey.Split(',').Select(int.Parse).ToArray() : new int[0];
                     int score = 0;
                     for (int i = 0; i < trackedTypes.Count; i++)
@@ -1222,6 +1263,7 @@ public static class RouteSuggest
                         int target = config.TargetCounts[trackedTypes[i]];
                         int actual = counts[i];
                         int diff = target - actual;
+                        // 这是最核心的评分函数映射。误差越大，惩罚呈现平方级增长，这意味着多目标权重的倾向会促使解越平滑地符合所有的数值要�?
                         score -= (diff * diff);
                     }
 
@@ -1366,9 +1408,10 @@ public static class RouteSuggest
                 }
             }
 
-            // Assign color to each segment based on priority (highest priority wins)
-            var segmentColors = new Dictionary<(MapCoord, MapCoord), Color>();
-            var sortedConfigs = PathConfigs.Where(c => c.Enabled).OrderByDescending(c => c.Priority).ToList();
+            // Collect colors for each segment to allow blending
+            var segmentConfigs = new Dictionary<(MapCoord, MapCoord), List<Color>>();
+            // Sort by priority ascending so that highest priority color is blended last
+            var sortedConfigs = PathConfigs.Where(c => c.Enabled).OrderBy(c => c.Priority).ToList();
 
             foreach (var config in sortedConfigs)
             {
@@ -1382,11 +1425,39 @@ public static class RouteSuggest
                         ? segment
                         : (segment.Item2, segment.Item1);
 
-                    // Assign color if not already assigned (higher priority paths win)
-                    if (!segmentColors.ContainsKey(normalizedKey))
+                    if (!segmentConfigs.ContainsKey(normalizedKey))
                     {
-                        segmentColors[normalizedKey] = config.Color;
+                        segmentConfigs[normalizedKey] = new List<Color>();
                     }
+                    segmentConfigs[normalizedKey].Add(config.Color);
+                }
+            }
+
+            var segmentColors = new Dictionary<(MapCoord, MapCoord), Color>();
+            foreach (var kvp in segmentConfigs)
+            {
+                var colors = kvp.Value;
+                if (colors.Count == 1)
+                {
+                    segmentColors[kvp.Key] = colors[0];
+                }
+                else
+                {
+                    // Blend colors for overlapping paths
+                    // Since configs are sorted by priority (ascending), the highest priority
+                    // color is blended last and has the strongest presence.
+                    Color mix = colors[0];
+                    for (int i = 1; i < colors.Count; i++)
+                    {
+                        mix = mix.Lerp(colors[i], 0.5f);
+                    }
+                    // Boost the brightness and alpha slightly to make the mixed path stand out
+                    mix.R = Math.Min(mix.R * 1.2f, 1f);
+                    mix.G = Math.Min(mix.G * 1.2f, 1f);
+                    mix.B = Math.Min(mix.B * 1.2f, 1f);
+                    mix.A = 1f;
+
+                    segmentColors[kvp.Key] = mix;
                 }
             }
 

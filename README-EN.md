@@ -149,7 +149,25 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 - **priority**: Higher values render on top when paths overlap
 - **scoring_weights**: Integer values for each room type (positive = preferred, negative = avoid)
 
-Available room types: `RestSite`, `Treasure`, `Shop`, `Monster`, `Elite`, `Unknown`, `Boss`
+| Field             | Type    | Description                                                                                         |
+| :---------------- | :------ | :-------------------------------------------------------------------------------------------------- |
+| `schema_version`  | Integer | Configuration schema version. Currently `3`.                                                        |
+| `highlight_type`  | String  | Mode: `One` (highlights a single best route) or `All` (highlights all tied top routes).             |
+| `path_configs`    | Array   | List of configured paths. If missing, default paths will be used.                                   |
+| `enabled`         | Boolean | Calculates and displays this path when set to `true`.                                               |
+| `name`            | String  | Name of the path (for ModConfig view).                                                              |
+| `color`           | String  | Hex color string.                                                                                   |
+| `priority`        | Integer | Higher values render on top of lower ones when paths overlap.                                       |
+| `scoring_weights` | Object  | Room type weights. Positive values attract, negative values repel. Missing values are 0 by default. |
+
+**Available room types (for `scoring_weights`):**
+
+- `RestSite`
+- `Treasure`
+- `Shop`
+- `Monster`
+- `Elite`
+- `Unknown`
 
 If the config file is missing or invalid, default path configs are used.
 
@@ -215,3 +233,7 @@ If the config file is missing or invalid, default path configs are used.
 
 - Initial release
 - Support for game versions v0.98.3 and v0.99
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

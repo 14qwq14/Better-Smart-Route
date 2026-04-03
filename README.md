@@ -150,7 +150,25 @@ RouteSuggest 可以选择集成 [**ModConfig**](https://github.com/xhyrzldf/ModC
 - **priority**: 优先级，数字越大在路线重叠时渲染在越上层。
 - **scoring_weights**: 各类房间的整数权重（正数代表倾向前往，负数代表避开）。
 
-可选的房间类型包含: `RestSite` (休息处), `Treasure` (宝箱), `Shop` (商店), `Monster` (怪物), `Elite` (精英), `Unknown` (未知), `Boss` (首领)
+| 字段              | 类型    | 说明                                                                           |
+| :---------------- | :------ | :----------------------------------------------------------------------------- |
+| `schema_version`  | Integer | 配置版本号，目前固定为 3。                                                     |
+| `highlight_type`  | String  | 高亮模式：`One` (仅高亮一条最高分路线) 或 `All` (高亮所有最高分路线)。         |
+| `path_configs`    | Array   | 路线配置的数组，如果为空或缺失，会使用默认三条路线。                           |
+| `name`            | String  | 路线名称（主要用于在 ModConfig 中显示）。                                      |
+| `color`           | String  | 高亮颜色代码，支持十六进制 (如 `#FFD700`)。                                    |
+| `priority`        | Integer | 当多条路线重叠时，priority 更高的颜色会画在上面。                              |
+| `enabled`         | Boolean | 为 `true` 时启用该路线计算与显示，为 `false` 时禁用该路线。                    |
+| `scoring_weights` | Object  | 记录目标节点类型的整数权重。正值吸引，负值排斥，未填写的房间类型权重默认为 0。 |
+
+**支持的房间类型（用于 `scoring_weights`）：**
+
+- `RestSite` (休息处)
+- `Treasure` (宝箱)
+- `Shop` (商店)
+- `Monster` (怪物)
+- `Elite` (精英)
+- `Unknown` (未知)
 
 如果配置文件缺失或无效，将使用默认的路线配置。
 
@@ -192,3 +210,7 @@ RouteSuggest 可以选择集成 [**ModConfig**](https://github.com/xhyrzldf/ModC
   - 更改内容会自动保存至 JSON。
   - 增加英语和简体中文的国际化支持。
 - 在游戏测试版 v0.99.1 上进行了测试。
+
+## ���� (License)
+
+����Ŀ���� [MIT License](LICENSE) ��Դ��

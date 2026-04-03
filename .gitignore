@@ -5,4 +5,6 @@
 *.pck
 *.dll
 *.zip
-dist/
+dist/*.old
+*.sln
+*.uid
