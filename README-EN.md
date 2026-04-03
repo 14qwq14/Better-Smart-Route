@@ -14,24 +14,24 @@ _Based on the original STS2RouteSuggest mod by Jiajie Chen @jiegec, modified to 
 ## Features
 
 - **Advanced Pathing**: Uses a high-performance Dynamic Programming (DP) algorithm for optimal speed and matched closest path robustness.
-- **Visual highlighting** with three default routes:
+- **Visual highlighting** with five default routes:
   - **Green**: Safe path (avoids Elites)
   - **Red**: Aggressive path (prioritizes Elites)
   - **Yellow**: Question marks path (prioritizes Unknown locations)
-- **Smart scoring**: Configurable target-based weights for different playstyles.
+  - **Magenta**: Boss Rush (avoids Elites, RestSites, and Monsters)
+  - **Cyan**: Max Rewards (prioritizes Elites, Treasures, and Shops)
+- **Smart scoring**: Configurable target-based ranges (Min/Max limits) for different playstyles.
 - **Improved Config System**: Auto-generation of default JSON configuration and better error handling.
-- **GUI Configuration**: Full in-game configuration via ModConfig (optional)
+- **GUI Configuration**: Full in-game configuration by pressing F10.
 - **Manual Configuration**: Direct JSON configuration for advanced users
 
 ## Demo & Usage
 
-If you have installed [ModConfig](https://steamcommunity.com/sharedfiles/filedetails/?id=3249021469), you can access the "Mod Settings" menu in-game to:
+If you have installed the F10 menu, you can access the "Mod Settings" menu in-game to:
 
 - Enable/disable specific paths (such as the default disabled "Boss Rush" and "Max Rewards" paths)
 - Tweak path highlighting colors and priorities
-- Adjust target counts for each room type
-
-If you prefer manual configuration without ModConfig, edit the `mods/RouteSuggestConfig.json` file in your Mod installation directory.
+- Adjust target ranges (Min/Max) for each room type
 
 3. Launch Slay the Spire 2 - the mod will load automatically
 
@@ -56,25 +56,41 @@ cd Better-Smart-Route
 
 RouteSuggest uses a Dynamic Programming (DP) algorithm to calculate optimal paths based on target values and scoring. This provides better performance and matched closest path robustness compared to basic search methods.
 
-By default, the following three target-based routes are calculated:
+By default, the following five target-based routes are calculated:
 
 ### Safe (Green)
 
 Minimizes tough encounters for a safer journey:
 
-- **Elite**: 0 weight (avoids Elites)
+- **Elite**: Target range 0 - 0 (avoids Elites)
 
 ### Aggressive (Red)
 
 Prioritizes combat rewards and high-value targets:
 
-- **Elite**: +15 weight
+- **Elite**: Target range 15 - 15
 
 ### Question marks (Yellow)
 
 Prioritizes map exploration and random events:
 
-- **Unknown**: +15 weight
+- **Unknown**: Target range 15 - 15
+
+### Boss Rush (Magenta)
+
+Minimize detours, aiming for the boss:
+
+- **Elite**: Target range 0 - 0
+- **RestSite**: Target range 0 - 0
+- **Monster**: Target range 0 - 0
+
+### Max Rewards (Cyan)
+
+Maximize resources along the path:
+
+- **Elite**: Target range 15 - 15
+- **Treasure**: Target range 10 - 10
+- **Shop**: Target range 5 - 5
 
 When paths share an edge, they overlap on the map screen according to rendering priority, or blend into other colors (like bright gold).
 
@@ -82,9 +98,7 @@ When paths share an edge, they overlap on the map screen according to rendering 
 
 ### GUI Settings (Recommended)
 
-RouteSuggest optionally integrates with [**ModConfig**](https://github.com/xhyrzldf/ModConfig-STS2). When ModConfig is installed, RouteSuggest appears in the game's **Settings > Mods** menu. If ModConfig is not installed, the mod still works normally, but you'll need to edit the JSON configuration file manually (see below).
-
-With ModConfig GUI, you can:
+With the F10 Menu GUI, you can:
 
 - **General Settings**:
   - **Highlight Type**: Choose to highlight one optimal path or all paths with optimal score
@@ -95,10 +109,8 @@ With ModConfig GUI, you can:
   - **Name**: Identifier for the path
   - **Color**: Enter hex color code (e.g., `#FFD700` for gold, `#FF0000` for red)
   - **Priority**: Slider to set rendering priority (higher = renders on top when paths overlap)
-  - **Scoring Weights**: Sliders for each room type
-    - Positive = prefer this room type
-    - Negative = avoid this room type
-    - Zero = neutral
+  - **Scoring Ranges**: Min/Max bounds for each room type target
+    - Penalizes paths that fall outside the Target Range
 - **Add New Path**: Slider to add a new path (slide to 1)
 - **Remove Path**: Each path has a slider to remove it (0=keep, 1=remove)
 - **Reset to Defaults**: Slider to reset all paths to default configuration
@@ -122,8 +134,8 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 			"color": "#00FF00",
 			"priority": 100,
 			"enabled": true,
-			"target_counts": {
-				"Elite": 0
+			"scoring_weights": {
+				"Elite": { "min": 0, "max": 0 }
 			}
 		},
 		{
@@ -131,8 +143,8 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 			"color": "#FF0000",
 			"priority": 50,
 			"enabled": true,
-			"target_counts": {
-				"Elite": 15
+			"scoring_weights": {
+				"Elite": { "min": 15, "max": 15 }
 			}
 		},
 		{
@@ -140,8 +152,8 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 			"color": "#FFFF00",
 			"priority": 75,
 			"enabled": true,
-			"target_counts": {
-				"Unknown": 15
+			"scoring_weights": {
+				"Unknown": { "min": 15, "max": 15 }
 			}
 		}
 	]
@@ -151,20 +163,20 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 - **enabled**: Set to `false` to disable a path (disabled paths are not calculated or shown)
 - **color**: Hex color code (e.g., `#FFD700` for gold, `#FF0000` for red)
 - **priority**: Higher values render on top when paths overlap
-- **target_counts**: Integer values for each room type (positive = preferred, negative = avoid)
+- **scoring_weights**: Integer values for each room type (positive = preferred, negative = avoid)
 
-| Field            | Type    | Description                                                                                         |
-| :--------------- | :------ | :-------------------------------------------------------------------------------------------------- |
-| `schema_version` | Integer | Configuration schema version. Currently `3`.                                                        |
-| `highlight_type` | String  | Mode: `One` (highlights a single best route) or `All` (highlights all tied top routes).             |
-| `path_configs`   | Array   | List of configured paths. If missing, default paths will be used.                                   |
-| `enabled`        | Boolean | Calculates and displays this path when set to `true`.                                               |
-| `name`           | String  | Name of the path (for ModConfig view).                                                              |
-| `color`          | String  | Hex color string.                                                                                   |
-| `priority`       | Integer | Higher values render on top of lower ones when paths overlap.                                       |
-| `target_counts`  | Object  | Room type weights. Positive values attract, negative values repel. Missing values are 0 by default. |
+| Field             | Type    | Description                                                                                         |
+| :---------------- | :------ | :-------------------------------------------------------------------------------------------------- |
+| `schema_version`  | Integer | Configuration schema version. Currently `3`.                                                        |
+| `highlight_type`  | String  | Mode: `One` (highlights a single best route) or `All` (highlights all tied top routes).             |
+| `path_configs`    | Array   | List of configured paths. If missing, default paths will be used.                                   |
+| `enabled`         | Boolean | Calculates and displays this path when set to `true`.                                               |
+| `name`            | String  | Name of the path (for F10 view).                                                                    |
+| `color`           | String  | Hex color string.                                                                                   |
+| `priority`        | Integer | Higher values render on top of lower ones when paths overlap.                                       |
+| `scoring_weights` | Object  | Room type weights. Positive values attract, negative values repel. Missing values are 0 by default. |
 
-**Available room types (for `target_counts`):**
+**Available room types (for `scoring_weights`):**
 
 - `RestSite`
 - `Treasure`
@@ -177,7 +189,7 @@ If the config file is missing or invalid, default path configs are used.
 
 ## Detailed Configuration Instructions
 
-You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
+You can modify the mod configuration via the in-game F10 Menu or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
 
 ### Configuration Options:
 
@@ -190,7 +202,7 @@ Each path config contains:
 - **color**: Hex color string (e.g. `#FF0000`).
 - **priority**: Render priority, higher numbers draw on top.
 - **enabled**: Whether to display this path.
-- **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
+- **scoring_weights**: (Optional) Target count ranges for each room type. E.g. `"Elite": {"min": 15, "max": 15}` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
 
 **Example config:**
 
@@ -204,8 +216,8 @@ Each path config contains:
 			"color": "#00FF00",
 			"priority": 100,
 			"enabled": true,
-			"target_counts": {
-				"Elite": 0
+			"scoring_weights": {
+				"Elite": { "min": 0, "max": 0 }
 			}
 		}
 	]
@@ -218,7 +230,7 @@ Each path config contains:
 
 ## Detailed Configuration Instructions
 
-You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
+You can modify the mod configuration via the in-game F10 Menu or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
 
 ### Configuration Options:
 
@@ -231,7 +243,7 @@ Each path config contains:
 - **color**: Hex color string (e.g. `#FF0000`).
 - **priority**: Render priority, higher numbers draw on top.
 - **enabled**: Whether to display this path.
-- **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
+- **scoring_weights**: (Optional) Target count ranges for each room type. E.g. `"Elite": {"min": 15, "max": 15}` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
 
 **Example config:**
 
@@ -245,8 +257,8 @@ Each path config contains:
 			"color": "#00FF00",
 			"priority": 100,
 			"enabled": true,
-			"target_counts": {
-				"Elite": 0
+			"scoring_weights": {
+				"Elite": { "min": 0, "max": 0 }
 			}
 		}
 	]
@@ -259,7 +271,7 @@ Each path config contains:
 
 ## Detailed Configuration Instructions
 
-You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
+You can modify the mod configuration via the in-game F10 Menu or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
 
 ### Configuration Options:
 
@@ -272,7 +284,7 @@ Each path config contains:
 - **color**: Hex color string (e.g. `#FF0000`).
 - **priority**: Render priority, higher numbers draw on top.
 - **enabled**: Whether to display this path.
-- **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
+- **scoring_weights**: (Optional) Target count ranges for each room type. E.g. `"Elite": {"min": 15, "max": 15}` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
 
 **Example config:**
 
@@ -286,8 +298,8 @@ Each path config contains:
 			"color": "#00FF00",
 			"priority": 100,
 			"enabled": true,
-			"target_counts": {
-				"Elite": 0
+			"scoring_weights": {
+				"Elite": { "min": 0, "max": 0 }
 			}
 		}
 	]

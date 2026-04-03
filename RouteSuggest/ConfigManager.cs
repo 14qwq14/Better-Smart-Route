@@ -20,11 +20,11 @@ public static class ConfigManager
 
   public static readonly List<PathConfig> DefaultPathConfigs = new List<PathConfig>
     {
-        new PathConfig { Name = "Safe (Green) / 安全", Color = new Color(0f, 1f, 0f, 1f), Priority = 100, TargetCounts = new() { { MapPointType.Elite, 0 } } },
-        new PathConfig { Name = "Aggressive (Red) / 激进", Color = new Color(1f, 0f, 0f, 1f), Priority = 50, TargetCounts = new() { { MapPointType.Elite, 15 } } },
-        new PathConfig { Name = "Question marks (Yellow) / 问号", Color = new Color(1f, 1f, 0f, 1f), Priority = 75, TargetCounts = new() { { MapPointType.Unknown, 15 } } },
-        new PathConfig { Name = "Boss Rush (Magenta) / 首领速通", Color = new Color(1f, 0f, 1f, 1f), Priority = 120, Enabled = true, TargetCounts = new() { { MapPointType.Elite, 15 }, { MapPointType.RestSite, 0 }, { MapPointType.Monster, 0 } } },
-        new PathConfig { Name = "Max Rewards (Cyan) / 最大收益", Color = new Color(0f, 1f, 1f, 1f), Priority = 90, Enabled = true, TargetCounts = new() { { MapPointType.Elite, 15 }, { MapPointType.Treasure, 10 }, { MapPointType.Shop, 5 } } }
+        new PathConfig { Name = "Safe (Green) / 安全", Color = new Color(0f, 1f, 0f, 1f), Priority = 100, Enabled = true, TargetCounts = new() { { MapPointType.Elite, new TargetRange(0, 0) } } },
+        new PathConfig { Name = "Aggressive (Red) / 激进", Color = new Color(1f, 0f, 0f, 1f), Priority = 50, Enabled = true, TargetCounts = new() { { MapPointType.Elite, new TargetRange(15, 15) } } },
+        new PathConfig { Name = "Question marks (Yellow) / 问号", Color = new Color(1f, 1f, 0f, 1f), Priority = 75, Enabled = true, TargetCounts = new() { { MapPointType.Unknown, new TargetRange(15, 15) } } },
+        new PathConfig { Name = "Boss Rush (Magenta) / 首领速通", Color = new Color(1f, 0f, 1f, 1f), Priority = 120, Enabled = true, TargetCounts = new() { { MapPointType.Elite, new TargetRange(15, 15) }, { MapPointType.RestSite, new TargetRange(0, 0) }, { MapPointType.Monster, new TargetRange(0, 0) } } },
+        new PathConfig { Name = "Max Rewards (Cyan) / 最大收益", Color = new Color(0f, 1f, 1f, 1f), Priority = 90, Enabled = true, TargetCounts = new() { { MapPointType.Elite, new TargetRange(15, 15) }, { MapPointType.Treasure, new TargetRange(10, 10) }, { MapPointType.Shop, new TargetRange(5, 5) } } }
     };
 
   public static void Initialize()
@@ -45,7 +45,7 @@ public static class ConfigManager
         Color = defaultConfig.Color,
         Priority = defaultConfig.Priority,
         Enabled = defaultConfig.Enabled,
-        TargetCounts = new Dictionary<MapPointType, int>(defaultConfig.TargetCounts)
+        TargetCounts = new Dictionary<MapPointType, TargetRange>(defaultConfig.TargetCounts)
       };
       PathConfigs.Add(config);
     }
@@ -90,7 +90,7 @@ public static class ConfigManager
           Color = $"#{config.Color.ToHtml(false)}",
           Priority = config.Priority,
           Enabled = config.Enabled,
-          TargetCounts = config.TargetCounts.ToDictionary(kvp => kvp.Key.ToString(), kvp => kvp.Value)
+          TargetCounts = config.TargetCounts.ToDictionary(kvp => kvp.Key.ToString(), kvp => new ScoreWeight { Min = kvp.Value.Min, Max = kvp.Value.Max })
         }).ToList()
       };
 
@@ -100,7 +100,7 @@ public static class ConfigManager
     }
     catch (Exception ex)
     {
-      RouteSuggestMod.Log($"Failed to save config: {ex.Message}");
+      RouteSuggestMod.LogError($"Failed to save config: {ex.Message}");
     }
   }
 
@@ -165,13 +165,14 @@ public static class ConfigManager
     return new Color(1f, 1f, 1f, 1f);
   }
 
-  private static Dictionary<MapPointType, int> ParseTargetCounts(Dictionary<string, int> dict)
+    private static Dictionary<MapPointType, TargetRange> ParseTargetCounts(Dictionary<string, ScoreWeight> dict)
   {
-    var result = new Dictionary<MapPointType, int>();
+    var result = new Dictionary<MapPointType, TargetRange>();
     if (dict == null) return result;
-    foreach (var kvp in dict)
-    {
-      if (Enum.TryParse<MapPointType>(kvp.Key, out var pt)) result[pt] = kvp.Value;
+    foreach (var kvp in dict) {
+      if (Enum.TryParse<MapPointType>(kvp.Key, out var pt)) {
+         result[pt] = new TargetRange(kvp.Value.Min, kvp.Value.Max);
+      }
     }
     return result;
   }
@@ -183,12 +184,19 @@ public static class ConfigManager
     [JsonPropertyName("path_configs")] public List<PathConfigEntry> PathConfigs { get; set; }
   }
 
+    private class ScoreWeight
+  {
+    [JsonPropertyName("min")] public int Min { get; set; }
+    [JsonPropertyName("max")] public int Max { get; set; }
+  }
+
   private class PathConfigEntry
   {
     [JsonPropertyName("name")] public string Name { get; set; }
     [JsonPropertyName("color")] public string Color { get; set; }
     [JsonPropertyName("priority")] public int Priority { get; set; }
-    [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
-    [JsonPropertyName("scoring_weights")] public Dictionary<string, int> TargetCounts { get; set; }
+    [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;     
+    [JsonPropertyName("scoring_weights")] public Dictionary<string, ScoreWeight> TargetCounts { get; set; }
   }
+
 }

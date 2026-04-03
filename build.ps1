@@ -55,14 +55,11 @@ if (-not (Test-Path $dllPath)) {
 }
 Copy-Item $dllPath -Destination "dist\RouteSuggest.dll" -Force
 
-Write-Host "Creating merged JSON (rotesuggest.json)..."
-$manifestText = Get-Content -Raw RouteSuggest.json
-$configText = Get-Content -Raw RouteSuggestConfig.json
-$combinedText = "{`n  `"manifest`": $manifestText,`n  `"config`": $configText`n}"
-Set-Content -Path "dist\rotesuggest.json" -Value $combinedText
+Write-Host "Copying mod_manifest.json..."
+Copy-Item mod_manifest.json -Destination "dist\mod_manifest.json" -Force
 
 Write-Host "Reading version..."
-$config = Get-Content -Raw RouteSuggest.json | ConvertFrom-Json
+$config = Get-Content -Raw mod_manifest.json | ConvertFrom-Json
 $VERSION = $config.version
 
 Write-Host "Creating zip archive RouteSuggest-v$VERSION.zip..."
@@ -71,7 +68,6 @@ if (Test-Path $zipFile) {
     Remove-Item -Force $zipFile
 }
 
-# 压缩 dist 文件夹下的内容
 Compress-Archive -Path "dist\*" -DestinationPath $zipFile
 
 Write-Host "Mod built and packaged successfully! Zip archive: $zipFile"

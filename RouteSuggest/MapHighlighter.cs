@@ -27,7 +27,7 @@ public static class MapHighlighter
     }
     catch (Exception ex)
     {
-      RouteSuggestMod.Log($"Error initializing reflection: {ex.Message}");
+      RouteSuggestMod.LogError($"Error initializing reflection: {ex.Message}");
     }
   }
 
@@ -60,8 +60,8 @@ public static class MapHighlighter
 
   public static void ForceClearHighlighting()
   {
-    // Safe clear, even if NMapScreen gets rebuilt, we release invalid textures.
     ClearPathHighlighting();
+    OriginalTickProperties.Clear();
   }
 
   public static void HighlightBestPath()
@@ -148,7 +148,7 @@ public static class MapHighlighter
     }
     catch (Exception ex)
     {
-      RouteSuggestMod.Log($"Error highlighting path: {ex.Message}");
+      RouteSuggestMod.LogError($"Error highlighting path: {ex.Message}");
     }
   }
 
@@ -174,7 +174,7 @@ public static class MapHighlighter
     }
     catch (Exception ex)
     {
-      RouteSuggestMod.Log($"Error clearing path highlighting: {ex.Message}");
+      RouteSuggestMod.LogError($"Error clearing path highlighting: {ex.Message}");
     }
   }
 }

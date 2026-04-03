@@ -12,10 +12,12 @@ public static class RouteSuggestMod
 {
   public static RunState RunState { get; private set; }
 
+  public static void LogInfo(string message) { Log(message); }
+  public static void LogError(string message) { MegaCrit.Sts2.Core.Logging.Log.Error($"RouteSuggest: {message}"); }
   public static void Log(string message)
   {
     string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-    MegaCrit.Sts2.Core.Logging.Log.Warn($"[{timestamp}] RouteSuggest: {message}");
+    MegaCrit.Sts2.Core.Logging.Log.Info($"[{timestamp}] RouteSuggest: {message}");
   }
 
   public static void ModLoaded()
@@ -24,6 +26,17 @@ public static class RouteSuggestMod
 
     ConfigManager.Initialize();
 
+    try
+    {
+      var tree = (SceneTree)Engine.GetMainLoop();
+      if (tree != null)
+      {
+        var ui = new ConfigMenu();
+        tree.Root.CallDeferred("add_child", ui);
+      }
+    }
+    catch { }
+
     var manager = RunManager.Instance;
     manager.RunStarted += OnRunStarted;
     manager.ActEntered += OnActEntered;
@@ -31,7 +44,7 @@ public static class RouteSuggestMod
     manager.RoomExited += OnRoomExited;
 
     MapHighlighter.InitializeReflection();
-    ModConfigAdapter.DeferredRegisterModConfig();
+    // UI handled by Custom Config Menu
   }
 
   private static void OnRunStarted(RunState runState)

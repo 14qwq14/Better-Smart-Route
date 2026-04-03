@@ -42,9 +42,9 @@ rm -rf dist
 mkdir -p dist
 cp ./.godot/mono/temp/bin/Debug/RouteSuggest.dll dist/
 
-# 生成合并 JSON 文件（rotesuggest.json），包含 RouteSuggest.json + RouteSuggestConfig.json，漂亮缩进格式可读可改
-jq --indent 2 -s '{manifest: .[0], config: .[1]}' RouteSuggest.json RouteSuggestConfig.json > dist/rotesuggest.json
+# 复制 mod_manifest.json
+cp mod_manifest.json dist/
 
-VERSION=$(jq -r ".version" RouteSuggest.json)
+VERSION=$(jq -r ".version" mod_manifest.json)
 rm -f RouteSuggest-v$VERSION.zip
 cd dist && zip -r ../RouteSuggest-v$VERSION.zip .
