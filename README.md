@@ -178,3 +178,42 @@ RouteSuggest 可以选择集成 [**ModConfig**](https://github.com/xhyrzldf/ModC
 
 如果配置文件缺失或无效，将使用默认的路线配置。
 
+
+
+## 配置详细说明
+
+你可以通过游戏内的 ModConfig 界面或编辑 `RouteSuggestConfig.json` 来修改模组配置。如果文件不存在或出错，模组在启动时会自动在相关目录生成一份包含默认值的配置。
+
+### 配置参数：
+- **highlight_type**：高亮类型。可选 `One` (仅高亮一条最佳路线) 或 `All` (高亮所有并列的最佳路线)。
+- **path_configs**：路径配置列表，你可以定义多条不同策略的路线。
+
+每个路径配置包含以下字段：
+- **name**: 路线名称，显示在日志或配置 UI 中。
+- **color**: 十六进制颜色代码 (例如 `#FF0000`)。
+- **priority**: 优先级，数字越大，渲染时越靠前。
+- **enabled**: 是否启用该条路线的高亮计算。
+- **target_counts**: (可选)各类型房间的*目标数量*。例如 `"Elite": 15` 表示尽可能多打精英（激进路线）；默认算法会将实际房间数偏离目标数量的差异平方后作为惩罚扣分，以找到最符合你期望目标的路线。
+
+**示例配置：**
+```json
+{
+  "schema_version": 3,
+  "highlight_type": "One",
+  "path_configs": [
+    {
+      "name": "Safe (Green) / 安全",
+      "color": "#00FF00",
+      "priority": 100,
+      "enabled": true,
+      "target_counts": {
+        "Elite": 0
+      }
+    }
+  ]
+}
+```
+
+## 演示视频 / GIF
+
+![使用演示视频或动态图](https://raw.githubusercontent.com/14qwq14/Better-Smart-Route/master/screenshot.png) (等待更新 GIF)

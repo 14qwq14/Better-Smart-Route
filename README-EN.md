@@ -169,3 +169,120 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 
 If the config file is missing or invalid, default path configs are used.
 
+
+
+## Detailed Configuration Instructions
+
+You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
+
+### Configuration Options:
+- **highlight_type**: `One` (highlight a single best route) or `All` (highlight all best routes with the same score).
+- **path_configs**: List of path configuration items for different strategies.
+
+Each path config contains:
+- **name**: Path name shown in logs and UI.
+- **color**: Hex color string (e.g. `#FF0000`).
+- **priority**: Render priority, higher numbers draw on top.
+- **enabled**: Whether to display this path.
+- **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
+
+**Example config:**
+```json
+{
+  "schema_version": 3,
+  "highlight_type": "One",
+  "path_configs": [
+    {
+      "name": "Safe (Green) / Safe",
+      "color": "#00FF00",
+      "priority": 100,
+      "enabled": true,
+      "target_counts": {
+        "Elite": 0
+      }
+    }
+  ]
+}
+```
+
+## Demo Video / GIF
+
+![Demo Video or GIF](https://raw.githubusercontent.com/14qwq14/Better-Smart-Route/master/screenshot.png) (Pending GIF update)
+
+
+## Detailed Configuration Instructions
+
+You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
+
+### Configuration Options:
+- **highlight_type**: `One` (highlight a single best route) or `All` (highlight all best routes with the same score).
+- **path_configs**: List of path configuration items for different strategies.
+
+Each path config contains:
+- **name**: Path name shown in logs and UI.
+- **color**: Hex color string (e.g. `#FF0000`).
+- **priority**: Render priority, higher numbers draw on top.
+- **enabled**: Whether to display this path.
+- **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
+
+**Example config:**
+```json
+{
+  "schema_version": 3,
+  "highlight_type": "One",
+  "path_configs": [
+    {
+      "name": "Safe (Green) / Safe",
+      "color": "#00FF00",
+      "priority": 100,
+      "enabled": true,
+      "target_counts": {
+        "Elite": 0
+      }
+    }
+  ]
+}
+```
+
+## Demo Video / GIF
+
+![Demo Video or GIF](https://raw.githubusercontent.com/14qwq14/Better-Smart-Route/master/screenshot.png) (Pending GIF update)
+
+
+## Detailed Configuration Instructions
+
+You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
+
+### Configuration Options:
+- **highlight_type**: `One` (highlight a single best route) or `All` (highlight all best routes with the same score).
+- **path_configs**: List of path configuration items for different strategies.
+
+Each path config contains:
+- **name**: Path name shown in logs and UI.
+- **color**: Hex color string (e.g. `#FF0000`).
+- **priority**: Render priority, higher numbers draw on top.
+- **enabled**: Whether to display this path.
+- **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
+
+**Example config:**
+```json
+{
+  "schema_version": 3,
+  "highlight_type": "One",
+  "path_configs": [
+    {
+      "name": "Safe (Green) / Safe",
+      "color": "#00FF00",
+      "priority": 100,
+      "enabled": true,
+      "target_counts": {
+        "Elite": 0
+      }
+    }
+  ]
+}
+```
+
+## Demo Video / GIF
+
+![Demo Video or GIF](https://raw.githubusercontent.com/14qwq14/Better-Smart-Route/master/screenshot.png) (Pending GIF update)
