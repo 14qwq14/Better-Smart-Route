@@ -1,5 +1,5 @@
-<div align="center">
-  <a href="README.md">English</a> | <a href="README_ZH.md">简体中文</a>
+﻿<div align="center">
+  <a href="README-EN.md">English</a> | <a href="README.md">简体中文</a>
 </div>
 # RouteSuggest - Slay the Spire 2 Mod
 
