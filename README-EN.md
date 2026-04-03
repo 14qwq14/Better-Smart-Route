@@ -25,8 +25,14 @@ _Based on the original STS2RouteSuggest mod by Jiajie Chen @jiegec, modified to 
 
 ## Demo & Usage
 
-![Usage Demo](demo.gif)
-_(Please place or link your recorded usage video/GIF here)_ 3. Launch Slay the Spire 2 - the mod will load automatically
+If you have installed [ModConfig](https://steamcommunity.com/sharedfiles/filedetails/?id=3249021469), you can access the "Mod Settings" menu in-game to:
+- Enable/disable specific paths (such as the default disabled "Boss Rush" and "Max Rewards" paths)
+- Tweak path highlighting colors and priorities
+- Adjust target counts for each room type
+
+If you prefer manual configuration without ModConfig, edit the `mods/RouteSuggestConfig.json` file in your Mod installation directory.
+
+3. Launch Slay the Spire 2 - the mod will load automatically
 
 ## Building from Source
 

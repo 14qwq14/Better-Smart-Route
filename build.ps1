@@ -1,26 +1,41 @@
+param (
+    [string]$GodotPath = $env:GODOT_PATH,
+    [string]$Sts2Path = $env:STS2_PATH
+)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$GODOT = "C:\Program Files (x86)\Godot_v4.6.2-stable_mono_win64\Godot_v4.6.2-stable_mono_win64\Godot_v4.6.2-stable_mono_win64.exe"
-
-# 尝试获取 Steam 路径以找到 sts2.dll
-$steamPath = (Get-ItemProperty "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue).SteamPath
-if (-not $steamPath) {
-    Write-Error "Could not find Steam path in registry."
+if (-not $GodotPath) {
+    # Default to godot command if in PATH
+    $GodotPath = (Get-Command 'godot' -ErrorAction SilentlyContinue).Source
+    if (-not $GodotPath) {
+        throw "Could not find Godot executable. Please provide -GodotPath or set GODOT_PATH environment variable."
+    }
 }
 
-$stsDllPath = "$steamPath\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll"
+if (-not $Sts2Path) {
+    # 尝试获取 Steam 路径以找到 Slay the Spire 2 目录
+    $steamPath = (Get-ItemProperty "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue).SteamPath
+    if ($steamPath) {
+        $Sts2Path = "$steamPath\steamapps\common\Slay the Spire 2"
+    } else {
+        throw "Could not find Steam path in registry. Please provide -Sts2Path or set STS2_PATH environment variable."
+    }
+}
+
+$stsDllPath = "$Sts2Path\data_sts2_windows_x86_64\sts2.dll"
 if (-not (Test-Path $stsDllPath)) {
-    Write-Error "Could not find sts2.dll at $stsDllPath"
+    throw "Could not find sts2.dll at $stsDllPath"
 }
 
 Write-Host "Copying sts2.dll to local directory..."
 Copy-Item $stsDllPath -Destination .\sts2.dll -Force
 
 Write-Host "Building Godot solutions..."
-$process = Start-Process -FilePath $GODOT -ArgumentList "--build-solutions", "--quit", "--headless", "--verbose" -Wait -NoNewWindow -PassThru
+$process = Start-Process -FilePath $GodotPath -ArgumentList "--build-solutions", "--quit", "--headless", "--verbose" -Wait -NoNewWindow -PassThru
 if ($process.ExitCode -ne 0) {
-    Write-Error "Build solutions failed with exit code $($process.ExitCode)"
+    throw "Build solutions failed with exit code $($process.ExitCode)"
 }
 
 Write-Host "Preparing dist directory..."
@@ -30,12 +45,16 @@ if (Test-Path dist) {
 New-Item -ItemType Directory -Path dist | Out-Null
 
 Write-Host "Copying RouteSuggest.dll..."
-Copy-Item ".\.godot\mono\temp\bin\Debug\RouteSuggest.dll" -Destination "dist\RouteSuggest.dll" -Force
+$dllPath = ".\.godot\mono\temp\bin\Debug\RouteSuggest.dll"
+if (-not (Test-Path $dllPath)) {
+    throw "Error: RouteSuggest.dll not found at $dllPath"
+}
+Copy-Item $dllPath -Destination "dist\RouteSuggest.dll" -Force
 
 Write-Host "Exporting Godot package..."
-$process = Start-Process -FilePath $GODOT -ArgumentList "--export-pack", "`"Windows Desktop`"", "dist/RouteSuggest.pck", "--headless" -Wait -NoNewWindow -PassThru
+$process = Start-Process -FilePath $GodotPath -ArgumentList "--export-pack", "`"Windows Desktop`"", "dist/RouteSuggest.pck", "--headless" -Wait -NoNewWindow -PassThru
 if ($process.ExitCode -ne 0) {
-    Write-Error "Export pack failed with exit code $($process.ExitCode)"
+    throw "Export pack failed with exit code $($process.ExitCode)"
 }
 
 Write-Host "Copying RouteSuggest.json..."
