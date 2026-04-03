@@ -8,7 +8,10 @@ Set-StrictMode -Version Latest
 
 if (-not $GodotPath) {
     # Default to godot command if in PATH
-    $GodotPath = (Get-Command 'godot' -ErrorAction SilentlyContinue).Source
+    $godotCmd = Get-Command 'godot' -ErrorAction SilentlyContinue
+    if ($godotCmd) {
+        $GodotPath = $godotCmd.Source
+    }
     if (-not $GodotPath) {
         throw "Could not find Godot executable. Please provide -GodotPath or set GODOT_PATH environment variable."
     }
@@ -19,7 +22,8 @@ if (-not $Sts2Path) {
     $steamPath = (Get-ItemProperty "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue).SteamPath
     if ($steamPath) {
         $Sts2Path = "$steamPath\steamapps\common\Slay the Spire 2"
-    } else {
+    }
+    else {
         throw "Could not find Steam path in registry. Please provide -Sts2Path or set STS2_PATH environment variable."
     }
 }
@@ -59,6 +63,9 @@ if ($process.ExitCode -ne 0) {
 
 Write-Host "Copying RouteSuggest.json..."
 Copy-Item RouteSuggest.json -Destination "dist\RouteSuggest.json" -Force
+
+Write-Host "Copying RouteSuggestConfig.json..."
+Copy-Item RouteSuggestConfig.json -Destination "dist\RouteSuggestConfig.json" -Force
 
 Write-Host "Reading version..."
 $config = Get-Content -Raw RouteSuggest.json | ConvertFrom-Json

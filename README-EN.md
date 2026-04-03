@@ -26,6 +26,7 @@ _Based on the original STS2RouteSuggest mod by Jiajie Chen @jiegec, modified to 
 ## Demo & Usage
 
 If you have installed [ModConfig](https://steamcommunity.com/sharedfiles/filedetails/?id=3249021469), you can access the "Mod Settings" menu in-game to:
+
 - Enable/disable specific paths (such as the default disabled "Boss Rush" and "Max Rewards" paths)
 - Tweak path highlighting colors and priorities
 - Adjust target counts for each room type
@@ -292,7 +293,3 @@ Each path config contains:
 	]
 }
 ```
-
-## Demo Video / GIF
-
-![Demo Video or GIF](https://raw.githubusercontent.com/14qwq14/Better-Smart-Route/master/screenshot.png) (Pending GIF update)
