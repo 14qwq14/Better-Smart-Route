@@ -2,9 +2,19 @@
 .godot/
 /android/
 
+# Build artifacts
 *.pck
 *.dll
 *.zip
-dist/*.old
+dist/
+Release/
+build.log
+
+# C# IDE and build files
 *.sln
 *.uid
+.vs/
+.vscode/
+bin/
+obj/
+*.csproj.user
