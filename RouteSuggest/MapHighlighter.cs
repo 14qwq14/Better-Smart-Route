@@ -108,18 +108,23 @@ public static class MapHighlighter
       }
 
       var segmentColors = new Dictionary<(MapCoord, MapCoord), Color>();
-      foreach (var kvp in segmentConfigs)
+
+      // 颜色不混合：如果多条路线共享边，直接显示优先级最高的路线颜色
+      var segmentTopPriority = new Dictionary<(MapCoord, MapCoord), int>();
+      foreach (var config in sortedConfigs)
       {
-        var mix = kvp.Value[0];
-        for (int i = 1; i < kvp.Value.Count; i++) mix = mix.Lerp(kvp.Value[i], 0.5f);
-        if (kvp.Value.Count > 1)
+        if (!pathSegments.TryGetValue(config.Name, out var segments)) continue;
+        foreach (var segment in segments)
         {
-          mix.R = Math.Min(mix.R * 1.2f, 1f);
-          mix.G = Math.Min(mix.G * 1.2f, 1f);
-          mix.B = Math.Min(mix.B * 1.2f, 1f);
-          mix.A = 1f;
+          var normalizedKey = segment.Item1.CompareTo(segment.Item2) <= 0 ? segment : (segment.Item2, segment.Item1);
+          if (!segmentTopPriority.TryGetValue(normalizedKey, out var existingPriority) || config.Priority > existingPriority)
+          {
+            var color = config.Color;
+            color.A = 1f;
+            segmentColors[normalizedKey] = color;
+            segmentTopPriority[normalizedKey] = config.Priority;
+          }
         }
-        segmentColors[kvp.Key] = mix;
       }
 
       foreach (var kvp in segmentColors)

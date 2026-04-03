@@ -41,9 +41,9 @@ cp "$STS_DLL" ./sts2.dll
 rm -rf dist
 mkdir -p dist
 cp ./.godot/mono/temp/bin/Debug/RouteSuggest.dll dist/
-"$GODOT_PATH" --export-pack "Windows Desktop" dist/RouteSuggest.pck --headless
-cp RouteSuggest.json dist/RouteSuggest.json
-cp RouteSuggestConfig.json dist/RouteSuggestConfig.json
+
+# 生成合并 JSON 文件（rotesuggest.json），包含 RouteSuggest.json + RouteSuggestConfig.json，漂亮缩进格式可读可改
+jq --indent 2 -s '{manifest: .[0], config: .[1]}' RouteSuggest.json RouteSuggestConfig.json > dist/rotesuggest.json
 
 VERSION=$(jq -r ".version" RouteSuggest.json)
 rm -f RouteSuggest-v$VERSION.zip

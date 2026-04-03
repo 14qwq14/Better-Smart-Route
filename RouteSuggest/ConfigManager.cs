@@ -23,8 +23,8 @@ public static class ConfigManager
         new PathConfig { Name = "Safe (Green) / 安全", Color = new Color(0f, 1f, 0f, 1f), Priority = 100, TargetCounts = new() { { MapPointType.Elite, 0 } } },
         new PathConfig { Name = "Aggressive (Red) / 激进", Color = new Color(1f, 0f, 0f, 1f), Priority = 50, TargetCounts = new() { { MapPointType.Elite, 15 } } },
         new PathConfig { Name = "Question marks (Yellow) / 问号", Color = new Color(1f, 1f, 0f, 1f), Priority = 75, TargetCounts = new() { { MapPointType.Unknown, 15 } } },
-        new PathConfig { Name = "Boss Rush (Purple) / 首领速通", Color = new Color(0.5f, 0f, 0.5f, 1f), Priority = 120, Enabled = true, TargetCounts = new() { { MapPointType.Elite, 15 }, { MapPointType.RestSite, 0 }, { MapPointType.Monster, 0 } } },
-        new PathConfig { Name = "Max Rewards (Gold) / 最大收益", Color = new Color(1f, 0.84f, 0f, 1f), Priority = 90, Enabled = true, TargetCounts = new() { { MapPointType.Elite, 15 }, { MapPointType.Treasure, 10 }, { MapPointType.Shop, 5 } } }
+        new PathConfig { Name = "Boss Rush (Magenta) / 首领速通", Color = new Color(1f, 0f, 1f, 1f), Priority = 120, Enabled = true, TargetCounts = new() { { MapPointType.Elite, 15 }, { MapPointType.RestSite, 0 }, { MapPointType.Monster, 0 } } },
+        new PathConfig { Name = "Max Rewards (Cyan) / 最大收益", Color = new Color(0f, 1f, 1f, 1f), Priority = 90, Enabled = true, TargetCounts = new() { { MapPointType.Elite, 15 }, { MapPointType.Treasure, 10 }, { MapPointType.Shop, 5 } } }
     };
 
   public static void Initialize()

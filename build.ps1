@@ -55,17 +55,11 @@ if (-not (Test-Path $dllPath)) {
 }
 Copy-Item $dllPath -Destination "dist\RouteSuggest.dll" -Force
 
-Write-Host "Exporting Godot package..."
-$process = Start-Process -FilePath $GodotPath -ArgumentList "--export-pack", "`"Windows Desktop`"", "dist/RouteSuggest.pck", "--headless" -Wait -NoNewWindow -PassThru
-if ($process.ExitCode -ne 0) {
-    throw "Export pack failed with exit code $($process.ExitCode)"
-}
-
-Write-Host "Copying RouteSuggest.json..."
-Copy-Item RouteSuggest.json -Destination "dist\RouteSuggest.json" -Force
-
-Write-Host "Copying RouteSuggestConfig.json..."
-Copy-Item RouteSuggestConfig.json -Destination "dist\RouteSuggestConfig.json" -Force
+Write-Host "Creating merged JSON (rotesuggest.json)..."
+$manifestText = Get-Content -Raw RouteSuggest.json
+$configText = Get-Content -Raw RouteSuggestConfig.json
+$combinedText = "{`n  `"manifest`": $manifestText,`n  `"config`": $configText`n}"
+Set-Content -Path "dist\rotesuggest.json" -Value $combinedText
 
 Write-Host "Reading version..."
 $config = Get-Content -Raw RouteSuggest.json | ConvertFrom-Json

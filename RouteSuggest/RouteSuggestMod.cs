@@ -29,7 +29,6 @@ public static class RouteSuggestMod
     manager.ActEntered += OnActEntered;
     manager.RoomEntered += OnRoomEntered;
     manager.RoomExited += OnRoomExited;
-    manager.RunEnded += OnRunEnded;
 
     MapHighlighter.InitializeReflection();
     ModConfigAdapter.DeferredRegisterModConfig();
@@ -38,14 +37,10 @@ public static class RouteSuggestMod
   private static void OnRunStarted(RunState runState)
   {
     Log("Run started");
+    MapHighlighter.ForceClearHighlighting();
     RunState = runState;
     RouteCalculator.InvalidateCache();
     RouteCalculator.UpdateBestPath();
-  }
-
-  private static void OnRunEnded(RunState obj)
-  {
-    MapHighlighter.ForceClearHighlighting();
   }
 
   private static void OnActEntered()
