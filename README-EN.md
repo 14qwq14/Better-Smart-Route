@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="README-EN.md">English</a> | <a href="README.md">¼òÌåÖÐÎÄ</a>
+  <a href="README-EN.md">English</a> | <a href="README.md">ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</a>
 </div>
 # RouteSuggest - Slay the Spire 2 Mod
 
@@ -20,14 +20,13 @@ _Based on the original STS2RouteSuggest mod by Jiajie Chen @jiegec, modified to 
   - **Yellow**: Question marks path (prioritizes Unknown locations)
 - **Smart scoring**: Configurable target-based weights for different playstyles.
 - **Improved Config System**: Auto-generation of default JSON configuration and better error handling.
-- **GUI Configuration**: Full in-game configuration via ModConfig (optional)    
-- **Manual Configuration**: Direct JSON configuration for advanced users        
+- **GUI Configuration**: Full in-game configuration via ModConfig (optional)
+- **Manual Configuration**: Direct JSON configuration for advanced users
 
 ## Demo & Usage
 
 ![Usage Demo](demo.gif)
-*(Please place or link your recorded usage video/GIF here)*
-3. Launch Slay the Spire 2 - the mod will load automatically
+_(Please place or link your recorded usage video/GIF here)_ 3. Launch Slay the Spire 2 - the mod will load automatically
 
 ## Building from Source
 
@@ -147,16 +146,16 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 - **priority**: Higher values render on top when paths overlap
 - **target_counts**: Integer values for each room type (positive = preferred, negative = avoid)
 
-| Field             | Type    | Description                                                                                         |
-| :---------------- | :------ | :-------------------------------------------------------------------------------------------------- |
-| `schema_version`  | Integer | Configuration schema version. Currently `3`.                                                        |
-| `highlight_type`  | String  | Mode: `One` (highlights a single best route) or `All` (highlights all tied top routes).             |
-| `path_configs`    | Array   | List of configured paths. If missing, default paths will be used.                                   |
-| `enabled`         | Boolean | Calculates and displays this path when set to `true`.                                               |
-| `name`            | String  | Name of the path (for ModConfig view).                                                              |
-| `color`           | String  | Hex color string.                                                                                   |
-| `priority`        | Integer | Higher values render on top of lower ones when paths overlap.                                       |
-| `target_counts` | Object  | Room type weights. Positive values attract, negative values repel. Missing values are 0 by default. |
+| Field            | Type    | Description                                                                                         |
+| :--------------- | :------ | :-------------------------------------------------------------------------------------------------- |
+| `schema_version` | Integer | Configuration schema version. Currently `3`.                                                        |
+| `highlight_type` | String  | Mode: `One` (highlights a single best route) or `All` (highlights all tied top routes).             |
+| `path_configs`   | Array   | List of configured paths. If missing, default paths will be used.                                   |
+| `enabled`        | Boolean | Calculates and displays this path when set to `true`.                                               |
+| `name`           | String  | Name of the path (for ModConfig view).                                                              |
+| `color`          | String  | Hex color string.                                                                                   |
+| `priority`       | Integer | Higher values render on top of lower ones when paths overlap.                                       |
+| `target_counts`  | Object  | Room type weights. Positive values attract, negative values repel. Missing values are 0 by default. |
 
 **Available room types (for `target_counts`):**
 
@@ -169,17 +168,17 @@ Alternatively, you can customize the path types by manually editing `RouteSugges
 
 If the config file is missing or invalid, default path configs are used.
 
-
-
 ## Detailed Configuration Instructions
 
 You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
 
 ### Configuration Options:
+
 - **highlight_type**: `One` (highlight a single best route) or `All` (highlight all best routes with the same score).
 - **path_configs**: List of path configuration items for different strategies.
 
 Each path config contains:
+
 - **name**: Path name shown in logs and UI.
 - **color**: Hex color string (e.g. `#FF0000`).
 - **priority**: Render priority, higher numbers draw on top.
@@ -187,21 +186,22 @@ Each path config contains:
 - **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
 
 **Example config:**
+
 ```json
 {
-  "schema_version": 3,
-  "highlight_type": "One",
-  "path_configs": [
-    {
-      "name": "Safe (Green) / Safe",
-      "color": "#00FF00",
-      "priority": 100,
-      "enabled": true,
-      "target_counts": {
-        "Elite": 0
-      }
-    }
-  ]
+	"schema_version": 3,
+	"highlight_type": "One",
+	"path_configs": [
+		{
+			"name": "Safe (Green) / Safe",
+			"color": "#00FF00",
+			"priority": 100,
+			"enabled": true,
+			"target_counts": {
+				"Elite": 0
+			}
+		}
+	]
 }
 ```
 
@@ -209,16 +209,17 @@ Each path config contains:
 
 ![Demo Video or GIF](https://raw.githubusercontent.com/14qwq14/Better-Smart-Route/master/screenshot.png) (Pending GIF update)
 
-
 ## Detailed Configuration Instructions
 
 You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
 
 ### Configuration Options:
+
 - **highlight_type**: `One` (highlight a single best route) or `All` (highlight all best routes with the same score).
 - **path_configs**: List of path configuration items for different strategies.
 
 Each path config contains:
+
 - **name**: Path name shown in logs and UI.
 - **color**: Hex color string (e.g. `#FF0000`).
 - **priority**: Render priority, higher numbers draw on top.
@@ -226,21 +227,22 @@ Each path config contains:
 - **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
 
 **Example config:**
+
 ```json
 {
-  "schema_version": 3,
-  "highlight_type": "One",
-  "path_configs": [
-    {
-      "name": "Safe (Green) / Safe",
-      "color": "#00FF00",
-      "priority": 100,
-      "enabled": true,
-      "target_counts": {
-        "Elite": 0
-      }
-    }
-  ]
+	"schema_version": 3,
+	"highlight_type": "One",
+	"path_configs": [
+		{
+			"name": "Safe (Green) / Safe",
+			"color": "#00FF00",
+			"priority": 100,
+			"enabled": true,
+			"target_counts": {
+				"Elite": 0
+			}
+		}
+	]
 }
 ```
 
@@ -248,16 +250,17 @@ Each path config contains:
 
 ![Demo Video or GIF](https://raw.githubusercontent.com/14qwq14/Better-Smart-Route/master/screenshot.png) (Pending GIF update)
 
-
 ## Detailed Configuration Instructions
 
 You can modify the mod configuration via the in-game ModConfig UI or by editing `RouteSuggestConfig.json`. If the file is missing or invalid, the mod will automatically generate a default configuration on startup.
 
 ### Configuration Options:
+
 - **highlight_type**: `One` (highlight a single best route) or `All` (highlight all best routes with the same score).
 - **path_configs**: List of path configuration items for different strategies.
 
 Each path config contains:
+
 - **name**: Path name shown in logs and UI.
 - **color**: Hex color string (e.g. `#FF0000`).
 - **priority**: Render priority, higher numbers draw on top.
@@ -265,21 +268,22 @@ Each path config contains:
 - **target_counts**: (Optional) Target count for each room type. E.g. `"Elite": 15` means combat as many elites as possible. The algorithm calculates penalty based on the squared deviation from target counts, finding the best route matching your preference.
 
 **Example config:**
+
 ```json
 {
-  "schema_version": 3,
-  "highlight_type": "One",
-  "path_configs": [
-    {
-      "name": "Safe (Green) / Safe",
-      "color": "#00FF00",
-      "priority": 100,
-      "enabled": true,
-      "target_counts": {
-        "Elite": 0
-      }
-    }
-  ]
+	"schema_version": 3,
+	"highlight_type": "One",
+	"path_configs": [
+		{
+			"name": "Safe (Green) / Safe",
+			"color": "#00FF00",
+			"priority": 100,
+			"enabled": true,
+			"target_counts": {
+				"Elite": 0
+			}
+		}
+	]
 }
 ```
 
