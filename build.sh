@@ -43,7 +43,7 @@ mkdir -p dist
 cp ./.godot/mono/temp/bin/Debug/RouteSuggest.dll dist/
 "$GODOT_PATH" --export-pack "Windows Desktop" dist/RouteSuggest.pck --headless
 cp RouteSuggest.json dist/RouteSuggest.json
-cp RouteSuggestConfig.json.example dist/RouteSuggestConfig.json.example
+cp RouteSuggestConfig.json dist/RouteSuggestConfig.json
 
 VERSION=$(jq -r ".version" RouteSuggest.json)
 rm -f RouteSuggest-v$VERSION.zip
