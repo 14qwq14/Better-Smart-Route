@@ -26,16 +26,7 @@ public static class RouteSuggestMod
 
     ConfigManager.Initialize();
 
-    try
-    {
-      var tree = (SceneTree)Engine.GetMainLoop();
-      if (tree != null)
-      {
-        var ui = new ConfigMenu();
-        tree.Root.CallDeferred("add_child", ui);
-      }
-    }
-    catch { }
+    ModConfigBridge.DeferredRegister();
 
     var manager = RunManager.Instance;
     manager.RunStarted += OnRunStarted;

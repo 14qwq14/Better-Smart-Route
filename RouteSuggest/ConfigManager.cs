@@ -144,7 +144,7 @@ public static class ConfigManager
     }
   }
 
-  private static Color ParseColor(string colorStr)
+  public static Color ParseColor(string colorStr)
   {
     if (string.IsNullOrEmpty(colorStr)) return new Color(1f, 1f, 1f, 1f);
     if (colorStr.StartsWith("#")) colorStr = colorStr.Substring(1);
@@ -165,13 +165,15 @@ public static class ConfigManager
     return new Color(1f, 1f, 1f, 1f);
   }
 
-    private static Dictionary<MapPointType, TargetRange> ParseTargetCounts(Dictionary<string, ScoreWeight> dict)
+  private static Dictionary<MapPointType, TargetRange> ParseTargetCounts(Dictionary<string, ScoreWeight> dict)
   {
     var result = new Dictionary<MapPointType, TargetRange>();
     if (dict == null) return result;
-    foreach (var kvp in dict) {
-      if (Enum.TryParse<MapPointType>(kvp.Key, out var pt)) {
-         result[pt] = new TargetRange(kvp.Value.Min, kvp.Value.Max);
+    foreach (var kvp in dict)
+    {
+      if (Enum.TryParse<MapPointType>(kvp.Key, out var pt))
+      {
+        result[pt] = new TargetRange(kvp.Value.Min, kvp.Value.Max);
       }
     }
     return result;
@@ -184,7 +186,7 @@ public static class ConfigManager
     [JsonPropertyName("path_configs")] public List<PathConfigEntry> PathConfigs { get; set; }
   }
 
-    private class ScoreWeight
+  private class ScoreWeight
   {
     [JsonPropertyName("min")] public int Min { get; set; }
     [JsonPropertyName("max")] public int Max { get; set; }
@@ -195,7 +197,7 @@ public static class ConfigManager
     [JsonPropertyName("name")] public string Name { get; set; }
     [JsonPropertyName("color")] public string Color { get; set; }
     [JsonPropertyName("priority")] public int Priority { get; set; }
-    [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;     
+    [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
     [JsonPropertyName("scoring_weights")] public Dictionary<string, ScoreWeight> TargetCounts { get; set; }
   }
 
