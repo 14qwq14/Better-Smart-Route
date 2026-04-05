@@ -2,215 +2,59 @@
   <a href="README-EN.md">English</a> | <a href="README.md">简体中文</a>
 </div>
 
-# RouteSuggest - 杀戮尖塔2 (Slay the Spire 2) 模组
+# RouteSuggest（杀戮尖塔2 路线推荐模组）
 
-![](screenshot.png)
+![RouteSuggest Screenshot](screenshot.png)
 
-一个《杀戮尖塔2》的模组，用于为你计算地图上的最佳路线，并在地图界面上将其高亮显示。
+根据你的目标（精英、问号、商店等房间数量区间）自动计算地图最优路线，并在地图界面高亮显示。
 
-_基于 Jiajie Chen @jiegec 的原版 STS2RouteSuggest 模组，修改为使用动态规划 (Dynamic Programming) 算法以及全新的基于目标的路线匹配。_
+## 兼容性
 
-**支持的游戏版本：** v0.99.1 和 v0.100.0 (公开测试版)
+- **模组版本**：`2.0`
+- **支持游戏版本**：`v0.99.1`、`v0.100.0`（公开测试版）
+- **开发运行时**：Godot 4.5.1（Mono） + .NET 9
 
-## 功能特点
+## 功能概览
 
-- **高级寻路**：使用高性能的动态规划 (DP) 算法，实现最佳计算速度和强大的匹配最近路线能力。
-- **视觉高亮**：默认提供五条路线高亮：
-  - **绿色**：安全路线 (避开精英)
-  - **红色**：激进路线 (优先挑战精英)
-  - **黄色**：问号路线 (优先前往未知地点)
-  - **洋红色**：首领速通 (避开精英、火堆和怪物)
-  - **青色**：最大收益 (尽可能多地获取精英、宝箱和商店)
-- **智能评分**：可以为不同的游玩风格配置特定的各类型房间目标数量范围 (Min/Max)。
-- **配置系统优化**：自动生成默认 JSON 配置，并带有更好的错误处理。
-- **GUI 配置**：可按 F10 在游戏内呼出专属控制面板。
-- **手动配置**：高级用户可以直接进行 JSON 配置。
+- **动态规划 (DP) 路线计算**：按目标区间匹配最优路线，性能稳定。
+- **多路线高亮**：支持按配置高亮单条或多条最优路线。
+- **优先级渲染**：路线重叠时按 `priority` 叠加显示（高优先级在上层）。
+- **手动 JSON 配置**：高级用户可直接编辑配置文件。
 
-## 演示与使用
+## 默认策略（开箱即用）
 
-- 启用/禁用特定路线（例如可以开启默认被隐藏的“首领速通”和“最大收益”路线）
-- 细调路线的高亮颜色和优先级
-- 设置各房间类型的目标数量范围 (Min / Max)
+> 说明：以下为常用策略示例，可在 JSON 中修改。
 
-## 安装指南
+| 路线名                         | 颜色      | 优先级 | 目标区间示例     |
+| :----------------------------- | :-------- | :----: | :--------------- |
+| Safe (Green) / 安全            | `#00FF00` |  100   | `Elite: 0-0`     |
+| Aggressive (Red) / 激进        | `#FF0000` |   50   | `Elite: 15-15`   |
+| Question marks (Yellow) / 未知 | `#FFFF00` |   75   | `Unknown: 15-15` |
 
-1. 从 [GitHub Releases](https://github.com/14qwq14/Better-Smart-Route)下载最新版本。
-2. 将模组文件解压到你的《杀戮尖塔2》 mods 文件夹中（`mods` 文件夹应与游戏可执行文件位于同一目录）：
-   - **Windows**: `C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\`
-   - **macOS**: `~/Library/Application\ Support/Steam/steamapps/common/Slay\ the\ Spire\ 2/SlayTheSpire2.app/Contents/MacOS/mods/`
-   - **Linux**: `~/.steam/steam/steamapps/common/Slay\ the\ Spire\ 2/mods`
-3. 启动《杀戮尖塔2》 - 模组将自动加载。
+## 安装（玩家）
 
-## 源码编译
+1. 从 GitHub Releases 下载发布包（zip）。
+2. 解压后将模组文件放入游戏 `mods` 目录。
+3. 启动游戏，模组会自动加载。
 
-### 环境要求
+常见 `mods` 路径：
 
-- .NET 9.0 SDK 或更高版本
-- Godot 4.5.1（支持 Mono）
-- 《杀戮尖塔2》（需要引用 sts2.dll）
-
-### 编译步骤
-
-```bash
-# 克隆仓库
-git clone https://github.com/14qwq14/Better-Smart-Route
-cd Better-Smart-Route
-
-# 编译模组
-./build.ps1
-```
-
-使用动态规划 (DP) 算法根据目标值和评分计算最佳路径。相较于基础的搜索方法，这提供了更好的性能和稳健的最优路径匹配。
-
-默认情况下，会计算以下五条基于目标的路线：
-
-### 安全 (绿色)
-
-尽可能减少艰难的战斗，让旅程更安全：
-
-- **精英 (Elite)**: 目标范围 0 - 0 (完全避开精英)
-
-### 激进 (红色)
-
-优先考虑战斗奖励和高价值目标：
-
-- **精英 (Elite)**: 目标范围 15 - 15 (尽可能多打精英)
-
-### 问号 (黄色)
-
-优先考虑地图探索和随机事件：
-
-- **未知 (Unknown)**: 目标范围 15 - 15 (尽可能多踩问号)
-
-### 首领速通 (洋红色)
-
-直奔首领，尽可能避开精英、火堆和怪物：
-
-- **精英 (Elite)**: 目标范围 0 - 0
-- **火堆 (RestSite)**: 目标范围 0 - 0
-- **怪物 (Monster)**: 目标范围 0 - 0
-
-### 最大收益 (青色)
-
-追求资源最大化，尽可能多拿精英、宝箱和商店：
-
-- **精英 (Elite)**: 目标范围 15 - 15
-- **宝箱 (Treasure)**: 目标范围 10 - 10
-- **商店 (Shop)**: 目标范围 5 - 5
-
-当路线共享同一条边时，它们会根据渲染优先级在地图界面上重叠显示，或者混合显示为其他颜色（如亮金色）。
+- **Windows**：`C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\`
+- **macOS**：`~/Library/Application Support/Steam/steamapps/common/Slay the Spire 2/SlayTheSpire2.app/Contents/MacOS/mods/`
+- **Linux**：`~/.steam/steam/steamapps/common/Slay the Spire 2/mods/`
 
 ## 配置说明
 
-### 控制面板游戏内设置
+### 手动编辑 JSON
 
-在游戏内，你可以按下键盘左上角的 **F10 控制面板快捷键** 来展开和精简修改：
+配置文件名：`RouteSuggestConfig.json`
 
-- **通用设置**:
-  - **高亮类型 (Highlight Type)**: 选择高亮一条最佳路径还是所有最高分的路径。
-  - **单条 (One)**: 从最优路径中挑选一条。
-  - **全部 (All)**: 高亮所有并列最高分的路径。
-- **配置每条路线**:
-  - **启用 (Enabled)**: 切换以启用/禁用此路线（禁用的路线不会被计算或显示）。
-  - **名称 (Name)**: 路线的标识名。
-  - **颜色 (Color)**: 输入十六进制颜色代码（例如 `#FFD700` 表示金色，`#FF0000` 表示红色）。
-  - **优先级 (Priority)**: 设置渲染优先级的滑块（数值越高，重叠时显示在越上层）。
-  - **目标范围 (Scoring Ranges)**: 调整每种房间类型的目标数量上限 (Max) 和下限 (Min)。
-  - 偏离设定范围时路线会受到评分惩罚
-- **添加新路线**: 拖动滑块添加新路线（滑到 1）。
-- **移除路线**: 每条路线都有一个移除滑块（0=保留，1=移除）。
-- **重置为默认值**: 将所有路线重置为默认配置的滑块。
-- **修改会自动保存** 到配置文件路径（详情见下文）。
+路径策略：
 
-### 手动 JSON 配置
+1. 优先放在模组 DLL 同目录。
+2. 若获取失败，回退到用户目录 `mods/RouteSuggestConfig.json`。
 
-你也可以通过直接编辑 `RouteSuggestConfig.json` 来手动自定义路线类型：
-
-- **现有用户**: 如果你已经在 `mods/RouteSuggestConfig.json` 拥有配置文件，它将被继续使用（不需要迁移）。
-- **新用户**: 配置文件将会和 `RouteSuggest.dll` 保存在一起（在 mods 文件夹中递归查找）。如果找不到 DLL，将退回到 `mods/RouteSuggestConfig.json`。
-- **注意**: 配置会保存到它被读取的同一位置。模组不会自动将配置文件迁移到其他位置。
-
-```json
-{
-	"schema_version": 3,
-	"highlight_type": "One",
-	"path_configs": [
-		{
-			"name": "Safe (Green)",
-			"color": "#00FF00",
-			"priority": 100,
-			"enabled": true,
-			"scoring_weights": {
-				"Elite": { "min": 0, "max": 0 }
-			}
-		},
-		{
-			"name": "Aggressive (Red)",
-			"color": "#FF0000",
-			"priority": 50,
-			"enabled": true,
-			"scoring_weights": {
-				"Elite": { "min": 15, "max": 15 }
-			}
-		},
-		{
-			"name": "Question marks (Yellow)",
-			"color": "#FFFF00",
-			"priority": 75,
-			"enabled": true,
-			"scoring_weights": {
-				"Unknown": { "min": 15, "max": 15 }
-			}
-		}
-	]
-}
-```
-
-- **enabled**: 设置为 `false` 可禁用路线（被禁用的路线不会计算评分，也不会显示在地图上）。
-- **color**: 十六进制颜色代码（如 `#FFD700` 代表金色，`#FF0000` 代表红色）。
-- **priority**: 优先级，数字越大在路线重叠时渲染在越上层。
-- **scoring_weights**: 目标类型数量。
-
-| 字段              | 类型    | 说明                                                                         |
-| :---------------- | :------ | :--------------------------------------------------------------------------- |
-| `schema_version`  | Integer | 配置版本号，目前固定为 3。                                                   |
-| `highlight_type`  | String  | 高亮模式：`One` (仅高亮一条最高分路线) 或 `All` (高亮所有最高分路线)。       |
-| `path_configs`    | Array   | 路线配置的数组，如果为空或缺失，会使用默认三条路线。                         |
-| `name`            | String  | 路线名称（主要用于在 F1面板 中显示）。                                       |
-| `color`           | String  | 高亮颜色代码，支持十六进制 (如 `#FFD700`)。                                  |
-| `priority`        | Integer | 当多条路线重叠时，priority 更高的颜色会画在上面。                            |
-| `enabled`         | Boolean | 为 `true` 时启用该路线计算与显示，为 `false` 时禁用该路线。                  |
-| `scoring_weights` | Object  | 各节点种类的目标数量上下限（使用 `min` 和 `max` 字段）。偏离范围会受到惩罚。 |
-
-**支持的房间类型（用于 `scoring_weights`）：**
-
-- `RestSite` (休息处)
-- `Treasure` (宝箱)
-- `Shop` (商店)
-- `Monster` (怪物)
-- `Elite` (精英)
-- `Unknown` (未知)
-
-如果配置文件缺失或无效，将使用默认的路线配置。
-
-## 配置详细说明
-
-你可以通过按下 F10 打开控制面板或编辑 `RouteSuggestConfig.json` 来修改模组配置。如果文件不存在或出错，模组在启动时会自动在相关目录生成一份包含默认值的配置。
-
-### 配置参数：
-
-- **highlight_type**：高亮类型。可选 `One` (仅高亮一条最佳路线) 或 `All` (高亮所有并列的最佳路线)。
-- **path_configs**：路径配置列表，你可以定义多条不同策略的路线。
-
-每个路径配置包含以下字段：
-
-- **name**: 路线名称，显示在日志或配置 UI 中。
-- **color**: 十六进制颜色代码 (例如 `#FF0000`)。
-- **priority**: 优先级，数字越大，渲染时越靠前。
-- **enabled**: 是否启用该条路线的高亮计算。
-- **scoring_weights**: (可选) 各类型房间的*目标数量范围*。例如 `"Elite": {"min": 15, "max": 15}` 表示尽可能多打精英（激进路线）；默认算法会将实际房间数偏离目标数量的差异平方后作为惩罚扣分，以找到最符合你期望目标的路线。
-
-**示例配置：**
+示例：
 
 ```json
 {
@@ -229,3 +73,59 @@ cd Better-Smart-Route
 	]
 }
 ```
+
+`scoring_weights` 支持的房间类型：
+
+- `RestSite`
+- `Treasure`
+- `Shop`
+- `Monster`
+- `Elite`
+- `Unknown`
+
+## 从源码构建（开发者）
+
+### 环境要求
+
+- .NET 9.0 SDK
+- Godot 4.5.1（Mono）
+- 本地《杀戮尖塔2》安装（用于读取 `sts2.dll`）
+
+### Windows
+
+- 可设置环境变量：
+  - `GODOT_PATH`（Godot 可执行文件）
+  - `STS2_PATH`（游戏目录）
+- 运行 `build.ps1`
+
+### Linux / macOS
+
+- 可设置环境变量：
+  - `GODOT_PATH`
+  - `STS2_PATH`
+- 运行 `build.sh`
+
+构建脚本会自动：
+
+1. 复制 `sts2.dll`
+2. 调用 Godot 编译 C# 方案
+3. 生成 `dist/`
+4. 打包 `RouteSuggest-v<version>.zip`
+
+## 项目结构（精简后）
+
+```text
+RouteSuggest/
+  ConfigManager.cs      # 配置读写、默认配置
+  MapHighlighter.cs     # 地图高亮渲染与地图事件绑定
+  PathConfig.cs         # 路径配置与评分模型
+  RouteCalculator.cs    # DP 路径搜索
+  RouteSuggestMod.cs    # 模组入口与事件调度
+build.ps1 / build.sh    # 构建脚本
+install.sh              # 安装脚本（Linux/macOS）
+mod_manifest.json       # 模组元数据
+```
+
+## 许可证
+
+本项目使用 `LICENSE` 中声明的许可证。
