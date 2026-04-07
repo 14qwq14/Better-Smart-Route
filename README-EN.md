@@ -58,7 +58,7 @@ Example:
 
 ```json
 {
-	"schema_version": 3,
+	"schema_version": 4,
 	"highlight_type": "One",
 	"path_configs": [
 		{
@@ -66,7 +66,7 @@ Example:
 			"color": "#00FF00",
 			"priority": 100,
 			"enabled": true,
-			"scoring_weights": {
+			"target_counts": {
 				"Elite": { "min": 0, "max": 0 }
 			}
 		}
@@ -74,7 +74,7 @@ Example:
 }
 ```
 
-Supported room types in `scoring_weights`:
+Supported room types in `target_counts` (legacy `scoring_weights` is still accepted):
 
 - `RestSite`
 - `Treasure`

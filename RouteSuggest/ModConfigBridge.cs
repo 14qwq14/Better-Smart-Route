@@ -144,6 +144,7 @@ internal static class ModConfigBridge
   private static Array BuildEntries()
   {
     var list = new List<object>();
+    var keyUsage = new Dictionary<string, int>(StringComparer.Ordinal);
 
     list.Add(Entry(cfg =>
     {
@@ -180,7 +181,7 @@ internal static class ModConfigBridge
     {
       var ci = i;
       if (!TryGetConfig(ci, out var pathConfig)) continue;
-      var prefix = $"Path_{ci}";
+      var prefix = BuildStablePathEntryPrefix(pathConfig, ci, keyUsage);
 
       list.Add(Entry(cfg => Set(cfg, "Type", EnumVal("Separator"))));
 
@@ -299,6 +300,47 @@ internal static class ModConfigBridge
     var result = Array.CreateInstance(_entryType, list.Count);
     for (int i = 0; i < list.Count; i++) result.SetValue(list[i], i);
     return result;
+  }
+
+  /// <summary>
+  /// 为路径配置构建稳定的键前缀，优先使用配置名，重名时自动追加序号。
+  /// </summary>
+  private static string BuildStablePathEntryPrefix(PathConfig pathConfig, int fallbackIndex, Dictionary<string, int> usage)
+  {
+    var baseKey = NormalizeKey(pathConfig?.Name);
+    if (string.IsNullOrEmpty(baseKey)) baseKey = $"path_{fallbackIndex}";
+
+    if (!usage.TryGetValue(baseKey, out var count))
+    {
+      usage[baseKey] = 1;
+      return $"Path_{baseKey}";
+    }
+
+    count++;
+    usage[baseKey] = count;
+    return $"Path_{baseKey}_{count}";
+  }
+
+  /// <summary>
+  /// 规范化配置名为可用于配置键的字符串。
+  /// </summary>
+  private static string NormalizeKey(string input)
+  {
+    if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+
+    var chars = input
+      .Trim()
+      .ToLowerInvariant()
+      .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')
+      .ToArray();
+
+    var normalized = new string(chars);
+    while (normalized.Contains("__", StringComparison.Ordinal))
+    {
+      normalized = normalized.Replace("__", "_", StringComparison.Ordinal);
+    }
+
+    return normalized.Trim('_');
   }
 
   /// <summary>

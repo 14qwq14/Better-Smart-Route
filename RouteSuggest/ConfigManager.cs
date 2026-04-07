@@ -1,6 +1,7 @@
 ﻿using Godot;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -17,6 +18,16 @@ namespace RouteSuggest;
 public static class ConfigManager
 {
   /// <summary>
+  /// 当前配置文件 schema 版本号。
+  /// </summary>
+  private const int CurrentSchemaVersion = 4;
+
+  /// <summary>
+  /// 回退路径标记，表示当前路径来自用户目录回退。
+  /// </summary>
+  private const string FallbackConfigPathMarker = "__fallback__";
+
+  /// <summary>
   /// 配置发生变化时触发（来源可能是运行时面板或配置文件改动）。
   /// </summary>
   public static event Action<string> ConfigurationChanged;
@@ -25,6 +36,11 @@ public static class ConfigManager
   /// 配置文件绝对路径缓存。
   /// </summary>
   private static string _configFilePath;
+
+  /// <summary>
+  /// 计算配置路径时使用的程序集路径缓存（用于检测运行期变化）。
+  /// </summary>
+  private static string _configPathAssemblyLocation;
 
   /// <summary>
   /// 是否已启动运行时配置监听。
@@ -62,8 +78,8 @@ public static class ConfigManager
   public static readonly List<PathConfig> DefaultPathConfigs = new List<PathConfig>
     {
         new PathConfig { Name = "Safe (Green) / 安全", Color = new Color(0f, 1f, 0f, 1f), Priority = 100, Enabled = true, TargetCounts = new Dictionary<MapPointType, TargetRange> { { MapPointType.Elite, new TargetRange(0, 0) } } },
-        new PathConfig { Name = "Aggressive (Red) / 激进", Color = new Color(1f, 0f, 0f, 1f), Priority = 50, Enabled = true, TargetCounts = new Dictionary<MapPointType, TargetRange> { { MapPointType.Elite, new TargetRange(15, 15) } } },
-        new PathConfig { Name = "Question marks (Yellow) / 未知", Color = new Color(1f, 1f, 0f, 1f), Priority = 75, Enabled = true, TargetCounts = new Dictionary<MapPointType, TargetRange> { { MapPointType.Unknown, new TargetRange(15, 15) } } }
+        new PathConfig { Name = "Aggressive (Red) / 激进", Color = new Color(1f, 0f, 0f, 1f), Priority = 50, Enabled = false, TargetCounts = new Dictionary<MapPointType, TargetRange> { { MapPointType.Elite, new TargetRange(15, 15) } } },
+        new PathConfig { Name = "Question marks (Yellow) / 未知", Color = new Color(1f, 1f, 0f, 1f), Priority = 75, Enabled = false, TargetCounts = new Dictionary<MapPointType, TargetRange> { { MapPointType.Unknown, new TargetRange(15, 15) } } }
     };
 
   /// <summary>
@@ -109,20 +125,35 @@ public static class ConfigManager
   /// <returns>配置文件绝对路径。</returns>
   public static string GetConfigFilePath()
   {
-    if (_configFilePath != null) return _configFilePath;
-
+    string assemblyPath = null;
     try
     {
-      string assemblyPath = Assembly.GetExecutingAssembly().Location;
-      if (!string.IsNullOrEmpty(assemblyPath))
+      assemblyPath = Assembly.GetExecutingAssembly().Location;
+    }
+    catch (Exception ex)
+    {
+      RouteSuggestMod.LogWarning($"Failed to resolve assembly location for config path: {ex.Message}");
+    }
+
+    if (!string.IsNullOrEmpty(assemblyPath))
+    {
+      if (_configFilePath != null && string.Equals(_configPathAssemblyLocation, assemblyPath, StringComparison.OrdinalIgnoreCase))
       {
-        _configFilePath = Path.Combine(Path.GetDirectoryName(assemblyPath), "RouteSuggestConfig.json");
         return _configFilePath;
       }
-    }
-    catch { }
 
-    // Fallback for weird runtimes
+      _configPathAssemblyLocation = assemblyPath;
+      var assemblyDirectory = Path.GetDirectoryName(assemblyPath);
+      _configFilePath = Path.Combine(assemblyDirectory ?? string.Empty, "RouteSuggestConfig.json");
+      return _configFilePath;
+    }
+
+    if (_configFilePath != null && _configPathAssemblyLocation == FallbackConfigPathMarker)
+    {
+      return _configFilePath;
+    }
+
+    _configPathAssemblyLocation = FallbackConfigPathMarker;
     _configFilePath = Path.Combine(OS.GetUserDataDir(), "mods", "RouteSuggestConfig.json");
     return _configFilePath;
   }
@@ -140,7 +171,7 @@ public static class ConfigManager
 
       var configData = new ConfigFile
       {
-        SchemaVersion = 3,
+        SchemaVersion = CurrentSchemaVersion,
         HighlightType = CurrentHighlightType.ToString(),
         PathConfigs = PathConfigs.Select(config => new PathConfigEntry
         {
@@ -148,7 +179,9 @@ public static class ConfigManager
           Color = $"#{config.Color.ToHtml(false)}",
           Priority = config.Priority,
           Enabled = config.Enabled,
-          TargetCounts = config.TargetCounts.ToDictionary(kvp => kvp.Key.ToString(), kvp => new ScoreWeight { Min = kvp.Value.Min, Max = kvp.Value.Max })
+          TargetCounts = (config.TargetCounts ?? new Dictionary<MapPointType, TargetRange>()).ToDictionary(
+            kvp => kvp.Key.ToString(),
+            kvp => new ScoreWeight { Min = kvp.Value.Min, Max = kvp.Value.Max })
         }).ToList()
       };
 
@@ -187,19 +220,33 @@ public static class ConfigManager
       }
 
       var configData = JsonSerializer.Deserialize<ConfigFile>(File.ReadAllText(configPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-      if (configData == null) return;
+      if (configData == null)
+      {
+        RouteSuggestMod.LogWarning("Config deserialization returned null; keeping in-memory defaults.");
+        return;
+      }
+
+      int originalSchemaVersion = configData.SchemaVersion;
+      bool migrated = MigrateConfigIfNeeded(configData);
+
+      if (configData.SchemaVersion > CurrentSchemaVersion)
+      {
+        RouteSuggestMod.LogWarning($"Config schema v{configData.SchemaVersion} is newer than supported v{CurrentSchemaVersion}; trying best-effort load.");
+      }
 
       if (Enum.TryParse<HighlightType>(configData.HighlightType, out var loadedType))
         CurrentHighlightType = loadedType;
+      else if (!string.IsNullOrWhiteSpace(configData.HighlightType))
+        RouteSuggestMod.LogWarning($"Unknown highlight_type '{configData.HighlightType}', keeping current value '{CurrentHighlightType}'.");
 
-      if (configData.PathConfigs != null)
+      if (configData.PathConfigs != null && configData.PathConfigs.Count > 0)
       {
         PathConfigs.Clear();
         foreach (var entry in configData.PathConfigs)
         {
           PathConfigs.Add(new PathConfig
           {
-            Name = entry.Name,
+            Name = string.IsNullOrWhiteSpace(entry.Name) ? "Unnamed Config" : entry.Name,
             Priority = entry.Priority,
             Color = ParseColor(entry.Color),
             Enabled = entry.Enabled,
@@ -207,14 +254,51 @@ public static class ConfigManager
           });
         }
       }
+      else
+      {
+        RouteSuggestMod.LogWarning("Config file contains no path_configs; keeping in-memory defaults.");
+      }
 
       RefreshObservedConfigWriteTime();
+
+      if (migrated)
+      {
+        RouteSuggestMod.Log($"Config migrated from schema v{originalSchemaVersion} to v{CurrentSchemaVersion}.");
+        SaveConfiguration();
+      }
     }
     catch (Exception ex)
     {
-      RouteSuggestMod.Log($"Error loading config: {ex.Message}, reverting to default.");
-      SaveConfiguration();
+      RouteSuggestMod.LogError($"Error loading config: {ex.Message}. Keeping in-memory defaults.");
     }
+  }
+
+  /// <summary>
+  /// 当读取到旧版本配置时执行最小迁移，并返回是否发生了迁移。
+  /// </summary>
+  private static bool MigrateConfigIfNeeded(ConfigFile configData)
+  {
+    if (configData == null) return false;
+
+    if (configData.SchemaVersion <= 0)
+    {
+      RouteSuggestMod.LogWarning("Config schema_version missing or invalid; assuming legacy schema v1.");
+      configData.SchemaVersion = 1;
+    }
+
+    if (configData.SchemaVersion >= CurrentSchemaVersion) return false;
+
+    // v4: 将字段语义统一为 target_counts，同时继续兼容 legacy scoring_weights 读取。
+    if (configData.PathConfigs != null)
+    {
+      foreach (var path in configData.PathConfigs)
+      {
+        path.TargetCounts ??= new Dictionary<string, ScoreWeight>();
+      }
+    }
+
+    configData.SchemaVersion = CurrentSchemaVersion;
+    return true;
   }
 
   /// <summary>
@@ -224,23 +308,48 @@ public static class ConfigManager
   /// <returns>解析后的颜色。</returns>
   public static Color ParseColor(string colorStr)
   {
-    if (string.IsNullOrEmpty(colorStr)) return new Color(1f, 1f, 1f, 1f);
-    if (colorStr.StartsWith("#")) colorStr = colorStr.Substring(1);
+    var fallback = new Color(1f, 1f, 1f, 1f);
+    if (string.IsNullOrWhiteSpace(colorStr)) return fallback;
 
-    if (colorStr.Length == 6)
+    var raw = colorStr.Trim();
+    var hex = raw.StartsWith("#", StringComparison.Ordinal) ? raw.Substring(1) : raw;
+    if (hex.Length != 6 && hex.Length != 8)
     {
-      return new Color(Convert.ToInt32(colorStr.Substring(0, 2), 16) / 255f,
-                       Convert.ToInt32(colorStr.Substring(2, 2), 16) / 255f,
-                       Convert.ToInt32(colorStr.Substring(4, 2), 16) / 255f, 1f);
+      RouteSuggestMod.LogWarning($"Invalid color format '{colorStr}', fallback to white.");
+      return fallback;
     }
-    if (colorStr.Length == 8)
+
+    if (!TryParseHexByte(hex, 0, out var r) ||
+        !TryParseHexByte(hex, 2, out var g) ||
+        !TryParseHexByte(hex, 4, out var b))
     {
-      return new Color(Convert.ToInt32(colorStr.Substring(0, 2), 16) / 255f,
-                       Convert.ToInt32(colorStr.Substring(2, 2), 16) / 255f,
-                       Convert.ToInt32(colorStr.Substring(4, 2), 16) / 255f,
-                       Convert.ToInt32(colorStr.Substring(6, 2), 16) / 255f);
+      RouteSuggestMod.LogWarning($"Invalid color hex '{colorStr}', fallback to white.");
+      return fallback;
     }
-    return new Color(1f, 1f, 1f, 1f);
+
+    byte a = 255;
+    if (hex.Length == 8 && !TryParseHexByte(hex, 6, out a))
+    {
+      RouteSuggestMod.LogWarning($"Invalid alpha hex in color '{colorStr}', fallback to white.");
+      return fallback;
+    }
+
+    return new Color(r / 255f, g / 255f, b / 255f, a / 255f);
+  }
+
+  /// <summary>
+  /// 解析 2 位十六进制字节字符串。
+  /// </summary>
+  private static bool TryParseHexByte(string hex, int startIndex, out byte value)
+  {
+    value = 0;
+    if (hex == null || startIndex < 0 || startIndex + 2 > hex.Length) return false;
+
+    return byte.TryParse(
+      hex.AsSpan(startIndex, 2),
+      NumberStyles.HexNumber,
+      CultureInfo.InvariantCulture,
+      out value);
   }
 
   /// <summary>
@@ -254,6 +363,7 @@ public static class ConfigManager
     if (dict == null) return result;
     foreach (var kvp in dict)
     {
+      if (kvp.Value == null) continue;
       if (Enum.TryParse<MapPointType>(kvp.Key, out var pt))
       {
         result[pt] = new TargetRange(kvp.Value.Min, kvp.Value.Max);
@@ -362,9 +472,10 @@ public static class ConfigManager
         ? File.GetLastWriteTimeUtc(configPath).Ticks
         : -1;
     }
-    catch
+    catch (Exception ex)
     {
       _lastObservedConfigWriteTimeTicks = -1;
+      RouteSuggestMod.LogWarning($"Failed to refresh config file write time: {ex.Message}");
     }
   }
 
@@ -446,7 +557,35 @@ public static class ConfigManager
     [JsonPropertyName("color")] public string Color { get; set; }
     [JsonPropertyName("priority")] public int Priority { get; set; }
     [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
-    [JsonPropertyName("scoring_weights")] public Dictionary<string, ScoreWeight> TargetCounts { get; set; }
+
+    /// <summary>
+    /// 新字段：各房间类型目标区间。
+    /// </summary>
+    [JsonPropertyName("target_counts")]
+    public Dictionary<string, ScoreWeight> TargetCounts { get; set; }
+
+    /// <summary>
+    /// 旧字段兼容：历史版本使用 scoring_weights。
+    /// </summary>
+    [JsonPropertyName("scoring_weights")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, ScoreWeight> LegacyScoringWeights
+    {
+      get => null;
+      set
+      {
+        if (value == null || value.Count == 0) return;
+        TargetCounts ??= new Dictionary<string, ScoreWeight>();
+
+        foreach (var kvp in value)
+        {
+          if (!TargetCounts.ContainsKey(kvp.Key))
+          {
+            TargetCounts[kvp.Key] = kvp.Value;
+          }
+        }
+      }
+    }
   }
 
 }

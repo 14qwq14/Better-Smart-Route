@@ -1,9 +1,7 @@
 ﻿using Godot;
 using System;
 using MegaCrit.Sts2.Core.Modding;
-using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Runs;
-using MegaCrit.Sts2.Core.Map;
 
 namespace RouteSuggest;
 
@@ -13,6 +11,21 @@ namespace RouteSuggest;
 [ModInitializer("ModLoaded")]
 public static class RouteSuggestMod
 {
+  /// <summary>
+  /// 当前已绑定事件的 RunManager 实例。
+  /// </summary>
+  private static RunManager _subscribedRunManager;
+
+  /// <summary>
+  /// 是否已启动每帧 RunManager 绑定检查。
+  /// </summary>
+  private static bool _runManagerWatcherStarted;
+
+  /// <summary>
+  /// 避免在 RunManager 暂不可用时重复刷屏日志。
+  /// </summary>
+  private static bool _missingRunManagerLogged;
+
   /// <summary>
   /// 当前 Run 的运行态缓存，供路径计算器读取。
   /// </summary>
@@ -31,12 +44,18 @@ public static class RouteSuggestMod
   public static void LogError(string message) { MegaCrit.Sts2.Core.Logging.Log.Error($"RouteSuggest: {message}"); }
 
   /// <summary>
+  /// 输出警告日志。
+  /// </summary>
+  /// <param name="message">警告消息。</param>
+  public static void LogWarning(string message) { MegaCrit.Sts2.Core.Logging.Log.Warn($"RouteSuggest: {message}"); }
+
+  /// <summary>
   /// 输出统一格式的普通日志（带时间戳），便于排查刷新和事件时序问题。
   /// </summary>
   /// <param name="message">日志消息。</param>
   public static void Log(string message)
   {
-    string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+    string timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fff'Z'");
     MegaCrit.Sts2.Core.Logging.Log.Info($"[{timestamp}] RouteSuggest: {message}");
   }
 
@@ -52,15 +71,76 @@ public static class RouteSuggestMod
     ConfigManager.ConfigurationChanged -= OnConfigurationChanged;
     ConfigManager.ConfigurationChanged += OnConfigurationChanged;
 
-    var manager = RunManager.Instance;
-    manager.RunStarted += OnRunStarted;
-    manager.ActEntered += OnActEntered;
-    manager.RoomEntered += OnRoomEntered;
-    manager.RoomExited += OnRoomExited;
+    EnsureRunManagerSubscriptions();
+    StartRunManagerWatcher();
 
     MapHighlighter.InitializeReflection();
     MapHighlighter.StartAutoMapScreenHook();
     // UI handled by Custom Config Menu
+  }
+
+  /// <summary>
+  /// 启动每帧检查，确保 RunManager 实例变化时正确解绑旧事件并绑定新实例。
+  /// </summary>
+  private static void StartRunManagerWatcher()
+  {
+    if (_runManagerWatcherStarted) return;
+
+    var tree = Engine.GetMainLoop() as SceneTree;
+    if (tree == null)
+    {
+      LogWarning("SceneTree is not ready; RunManager watcher not started.");
+      return;
+    }
+
+    tree.ProcessFrame -= OnProcessFrame;
+    tree.ProcessFrame += OnProcessFrame;
+    _runManagerWatcherStarted = true;
+  }
+
+  /// <summary>
+  /// 每帧检查 RunManager 是否被替换（例如热重载/场景重建），并进行重绑。
+  /// </summary>
+  private static void OnProcessFrame()
+  {
+    EnsureRunManagerSubscriptions();
+  }
+
+  /// <summary>
+  /// 确保仅在当前 RunManager 实例上注册一次事件；实例变化时会先解绑旧实例。
+  /// </summary>
+  private static void EnsureRunManagerSubscriptions()
+  {
+    var manager = RunManager.Instance;
+    if (ReferenceEquals(manager, _subscribedRunManager)) return;
+
+    if (_subscribedRunManager != null)
+    {
+      _subscribedRunManager.RunStarted -= OnRunStarted;
+      _subscribedRunManager.ActEntered -= OnActEntered;
+      _subscribedRunManager.RoomEntered -= OnRoomEntered;
+      _subscribedRunManager.RoomExited -= OnRoomExited;
+      Log("Unsubscribed events from previous RunManager instance");
+    }
+
+    _subscribedRunManager = manager;
+    if (_subscribedRunManager == null)
+    {
+      if (!_missingRunManagerLogged)
+      {
+        LogWarning("RunManager.Instance is null; will retry binding on next frame.");
+        _missingRunManagerLogged = true;
+      }
+
+      return;
+    }
+
+    _missingRunManagerLogged = false;
+    _subscribedRunManager.RunStarted += OnRunStarted;
+    _subscribedRunManager.ActEntered += OnActEntered;
+    _subscribedRunManager.RoomEntered += OnRoomEntered;
+    _subscribedRunManager.RoomExited += OnRoomExited;
+    Log("Subscribed events to RunManager instance");
   }
 
   /// <summary>

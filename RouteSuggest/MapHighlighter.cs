@@ -24,6 +24,7 @@ public static class MapHighlighter
   /// </summary>
   private static FieldInfo _pathsField;
   private static bool _reflectionInitialized = false;
+  private static bool _reflectionFailureNotified = false;
 
   /// <summary>
   /// 自动重绑地图实例相关状态。
@@ -46,10 +47,19 @@ public static class MapHighlighter
       var mapScreenType = typeof(NMapScreen);
       _pathsField = mapScreenType.GetField("_paths", BindingFlags.NonPublic | BindingFlags.Instance);
       _reflectionInitialized = _pathsField != null;
-      if (_reflectionInitialized) RouteSuggestMod.Log("Reflection initialized successfully");
+      if (_reflectionInitialized)
+      {
+        _reflectionFailureNotified = false;
+        RouteSuggestMod.Log("Reflection initialized successfully");
+      }
+      else
+      {
+        RouteSuggestMod.LogWarning("Reflection initialization failed: field '_paths' not found.");
+      }
     }
     catch (Exception ex)
     {
+      _reflectionInitialized = false;
       RouteSuggestMod.LogError($"Error initializing reflection: {ex.Message}");
     }
   }
@@ -99,7 +109,11 @@ public static class MapHighlighter
 
     if (_hookedMapScreen != null)
     {
-      try { _hookedMapScreen.Opened -= OnMapScreenOpened; } catch { }
+      try { _hookedMapScreen.Opened -= OnMapScreenOpened; }
+      catch (Exception ex)
+      {
+        RouteSuggestMod.LogWarning($"Failed to unhook previous map screen Opened event: {ex.Message}");
+      }
     }
 
     mapScreen.Opened -= OnMapScreenOpened;
@@ -160,7 +174,20 @@ public static class MapHighlighter
   {
 
 
-    if (!_reflectionInitialized) return;
+    if (!_reflectionInitialized)
+    {
+      InitializeReflection();
+      if (!_reflectionInitialized)
+      {
+        if (!_reflectionFailureNotified)
+        {
+          RouteSuggestMod.LogWarning("Path highlighting is temporarily unavailable because reflection metadata is not ready.");
+          _reflectionFailureNotified = true;
+        }
+
+        return;
+      }
+    }
 
 
     ClearPathHighlighting();
@@ -190,19 +217,7 @@ public static class MapHighlighter
         if (segments.Count > 0) pathSegments[kvp.Key] = segments;
       }
 
-      var segmentConfigs = new Dictionary<(MapCoord, MapCoord), List<Color>>();
       var sortedConfigs = ConfigManager.PathConfigs.Where(c => c.Enabled).OrderBy(c => c.Priority).ToList();
-
-      foreach (var config in sortedConfigs)
-      {
-        if (!pathSegments.TryGetValue(config.Name, out var segments)) continue;
-        foreach (var segment in segments)
-        {
-          var normalizedKey = segment.Item1.CompareTo(segment.Item2) <= 0 ? segment : (segment.Item2, segment.Item1);
-          if (!segmentConfigs.ContainsKey(normalizedKey)) segmentConfigs[normalizedKey] = new List<Color>();
-          segmentConfigs[normalizedKey].Add(config.Color);
-        }
-      }
 
       var segmentColors = new Dictionary<(MapCoord, MapCoord), Color>();
 
@@ -227,7 +242,7 @@ public static class MapHighlighter
       foreach (var kvp in segmentColors)
       {
         var segment = kvp.Key;
-        object pathTicks = paths.Contains(segment) ? paths[segment] : (paths.Contains((segment.Item2, segment.Item1)) ? paths[(segment.Item2, segment.Item1)] : null);
+        object pathTicks = paths.Contains(segment) ? paths[segment] : null;
 
         if (pathTicks is IReadOnlyList<TextureRect> ticks)
         {

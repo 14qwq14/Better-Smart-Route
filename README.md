@@ -58,7 +58,7 @@
 
 ```json
 {
-	"schema_version": 3,
+	"schema_version": 4,
 	"highlight_type": "One",
 	"path_configs": [
 		{
@@ -66,7 +66,7 @@
 			"color": "#00FF00",
 			"priority": 100,
 			"enabled": true,
-			"scoring_weights": {
+			"target_counts": {
 				"Elite": { "min": 0, "max": 0 }
 			}
 		}
@@ -74,7 +74,7 @@
 }
 ```
 
-`scoring_weights` 支持的房间类型：
+`target_counts`（兼容旧字段 `scoring_weights`）支持的房间类型：
 
 - `RestSite`
 - `Treasure`
