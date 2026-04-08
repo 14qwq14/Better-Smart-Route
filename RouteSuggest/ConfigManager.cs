@@ -48,14 +48,59 @@ public static class ConfigManager
   private static bool _changeWatcherStarted = false;
 
   /// <summary>
+  /// 配置文件写入时间检查轮询间隔（毫秒）。
+  /// </summary>
+  private const long FileChangePollIntervalMilliseconds = 2000;
+
+  /// <summary>
+  /// 运行时内存配置指纹检查轮询间隔（毫秒）。
+  /// </summary>
+  private const long RuntimeFingerprintPollIntervalMilliseconds = 300;
+
+  /// <summary>
   /// 最近一次观测到的配置指纹。
   /// </summary>
-  private static int? _lastObservedConfigFingerprint;
+  private static string _lastObservedConfigFingerprint;
+
+  /// <summary>
+  /// 下一次允许执行“文件写入时间检查”的时间戳（毫秒）。
+  /// </summary>
+  private static long _nextFileChangePollAtMilliseconds;
+
+  /// <summary>
+  /// 下一次允许执行“运行时指纹检查”的时间戳（毫秒）。
+  /// </summary>
+  private static long _nextRuntimeFingerprintPollAtMilliseconds;
 
   /// <summary>
   /// 最近一次观测到的配置文件 UTC 写入时间戳（ticks）。
   /// </summary>
   private static long _lastObservedConfigWriteTimeTicks = -1;
+
+  /// <summary>
+  /// 配置文件事件监听器（用于减少轮询频率与磁盘检查开销）。
+  /// </summary>
+  private static FileSystemWatcher _configFileWatcher;
+
+  /// <summary>
+  /// 当前 watcher 正在监听的配置文件绝对路径。
+  /// </summary>
+  private static string _watchedConfigFilePath;
+
+  /// <summary>
+  /// 由文件系统事件置位：提示下一帧尝试重载配置。
+  /// </summary>
+  private static volatile bool _fileWatcherReloadPending;
+
+  /// <summary>
+  /// 正在执行内部保存流程时置位，用于忽略自身写盘触发的文件事件。
+  /// </summary>
+  private static volatile bool _isSavingConfiguration;
+
+  /// <summary>
+  /// 避免在不支持 FileSystemWatcher 的环境反复刷屏。
+  /// </summary>
+  private static bool _fileWatcherUnsupportedLogged;
 
   /// <summary>
   /// 在批量加载/重置配置时暂时抑制变更通知，避免误触发刷新。
@@ -137,7 +182,11 @@ public static class ConfigManager
 
     if (!string.IsNullOrEmpty(assemblyPath))
     {
-      if (_configFilePath != null && string.Equals(_configPathAssemblyLocation, assemblyPath, StringComparison.OrdinalIgnoreCase))
+      var pathComparison = OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+      if (_configFilePath != null && string.Equals(_configPathAssemblyLocation, assemblyPath, pathComparison))
       {
         return _configFilePath;
       }
@@ -167,26 +216,45 @@ public static class ConfigManager
     {
       string configPath = GetConfigFilePath();
       var dir = Path.GetDirectoryName(configPath);
-      if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+      if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
-      var configData = new ConfigFile
+      _isSavingConfiguration = true;
+      try
       {
-        SchemaVersion = CurrentSchemaVersion,
-        HighlightType = CurrentHighlightType.ToString(),
-        PathConfigs = PathConfigs.Select(config => new PathConfigEntry
+        var configData = new ConfigFile
         {
-          Name = config.Name,
-          Color = $"#{config.Color.ToHtml(false)}",
-          Priority = config.Priority,
-          Enabled = config.Enabled,
-          TargetCounts = (config.TargetCounts ?? new Dictionary<MapPointType, TargetRange>()).ToDictionary(
-            kvp => kvp.Key.ToString(),
-            kvp => new ScoreWeight { Min = kvp.Value.Min, Max = kvp.Value.Max })
-        }).ToList()
-      };
+          SchemaVersion = CurrentSchemaVersion,
+          HighlightType = CurrentHighlightType.ToString(),
+          PathConfigs = PathConfigs
+            .Where(config => config != null)
+            .Select(config => new PathConfigEntry
+            {
+              Name = string.IsNullOrWhiteSpace(config.Name) ? "Unnamed Config" : config.Name,
+              Color = $"#{config.Color.ToHtml(false)}",
+              Priority = config.Priority,
+              Enabled = config.Enabled,
+              TargetCounts = (config.TargetCounts ?? new Dictionary<MapPointType, TargetRange>()).ToDictionary(
+                kvp => kvp.Key.ToString(),
+                kvp =>
+                {
+                  var min = Math.Min(kvp.Value.Min, kvp.Value.Max);
+                  var max = Math.Max(kvp.Value.Min, kvp.Value.Max);
+                  return new ScoreWeight { Min = min, Max = max };
+                })
+            })
+            .ToList()
+        };
 
-      var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
-      File.WriteAllText(configPath, JsonSerializer.Serialize(configData, options));
+        var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+        File.WriteAllText(configPath, JsonSerializer.Serialize(configData, options));
+      }
+      finally
+      {
+        _isSavingConfiguration = false;
+      }
+
+      EnsureConfigFileWatcher();
+      _fileWatcherReloadPending = false;
       RefreshObservedConfigWriteTime();
 
       if (!_suppressChangeNotifications)
@@ -234,7 +302,7 @@ public static class ConfigManager
         RouteSuggestMod.LogWarning($"Config schema v{configData.SchemaVersion} is newer than supported v{CurrentSchemaVersion}; trying best-effort load.");
       }
 
-      if (Enum.TryParse<HighlightType>(configData.HighlightType, out var loadedType))
+      if (Enum.TryParse<HighlightType>(configData.HighlightType, ignoreCase: true, out var loadedType))
         CurrentHighlightType = loadedType;
       else if (!string.IsNullOrWhiteSpace(configData.HighlightType))
         RouteSuggestMod.LogWarning($"Unknown highlight_type '{configData.HighlightType}', keeping current value '{CurrentHighlightType}'.");
@@ -288,17 +356,104 @@ public static class ConfigManager
 
     if (configData.SchemaVersion >= CurrentSchemaVersion) return false;
 
-    // v4: 将字段语义统一为 target_counts，同时继续兼容 legacy scoring_weights 读取。
-    if (configData.PathConfigs != null)
+    var migrated = false;
+    while (configData.SchemaVersion < CurrentSchemaVersion)
     {
-      foreach (var path in configData.PathConfigs)
+      switch (configData.SchemaVersion)
       {
-        path.TargetCounts ??= new Dictionary<string, ScoreWeight>();
+        case 1:
+          MigrateV1ToV2(configData);
+          configData.SchemaVersion = 2;
+          migrated = true;
+          break;
+        case 2:
+          MigrateV2ToV3(configData);
+          configData.SchemaVersion = 3;
+          migrated = true;
+          break;
+        case 3:
+          MigrateV3ToV4(configData);
+          configData.SchemaVersion = 4;
+          migrated = true;
+          break;
+        default:
+          RouteSuggestMod.LogWarning($"Unknown legacy schema v{configData.SchemaVersion}; applying best-effort migration to v{CurrentSchemaVersion}.");
+          MigrateToCurrentBestEffort(configData);
+          configData.SchemaVersion = CurrentSchemaVersion;
+          migrated = true;
+          break;
       }
     }
 
-    configData.SchemaVersion = CurrentSchemaVersion;
-    return true;
+    return migrated;
+  }
+
+  /// <summary>
+  /// v1 -> v2 迁移。
+  /// </summary>
+  private static void MigrateV1ToV2(ConfigFile configData)
+  {
+    // 预留：当前版本链路中 v1 -> v2 没有结构性改动，保留显式步骤以便后续维护。
+    _ = configData;
+  }
+
+  /// <summary>
+  /// v2 -> v3 迁移。
+  /// </summary>
+  private static void MigrateV2ToV3(ConfigFile configData)
+  {
+    // 预留：当前版本链路中 v2 -> v3 没有结构性改动，保留显式步骤以便后续维护。
+    _ = configData;
+  }
+
+  /// <summary>
+  /// v3 -> v4 迁移：统一 target_counts，并合并 legacy scoring_weights。
+  /// </summary>
+  private static void MigrateV3ToV4(ConfigFile configData)
+  {
+    if (configData.PathConfigs == null) return;
+
+    foreach (var path in configData.PathConfigs)
+    {
+      path.TargetCounts ??= new Dictionary<string, ScoreWeight>();
+
+      if (path.LegacyScoringWeights != null)
+      {
+        foreach (var kvp in path.LegacyScoringWeights)
+        {
+          if (!path.TargetCounts.ContainsKey(kvp.Key))
+          {
+            path.TargetCounts[kvp.Key] = kvp.Value;
+          }
+        }
+      }
+
+      path.LegacyScoringWeights = null;
+    }
+  }
+
+  /// <summary>
+  /// 未知旧版本的最佳努力迁移。
+  /// </summary>
+  private static void MigrateToCurrentBestEffort(ConfigFile configData)
+  {
+    if (configData.PathConfigs == null) return;
+
+    foreach (var path in configData.PathConfigs)
+    {
+      path.TargetCounts ??= new Dictionary<string, ScoreWeight>();
+
+      if (path.LegacyScoringWeights == null) continue;
+      foreach (var kvp in path.LegacyScoringWeights)
+      {
+        if (!path.TargetCounts.ContainsKey(kvp.Key))
+        {
+          path.TargetCounts[kvp.Key] = kvp.Value;
+        }
+      }
+
+      path.LegacyScoringWeights = null;
+    }
   }
 
   /// <summary>
@@ -361,14 +516,18 @@ public static class ConfigManager
   {
     var result = new Dictionary<MapPointType, TargetRange>();
     if (dict == null) return result;
+
     foreach (var kvp in dict)
     {
       if (kvp.Value == null) continue;
-      if (Enum.TryParse<MapPointType>(kvp.Key, out var pt))
+      if (Enum.TryParse<MapPointType>(kvp.Key, ignoreCase: true, out var pt))
       {
-        result[pt] = new TargetRange(kvp.Value.Min, kvp.Value.Max);
+        var min = Math.Min(kvp.Value.Min, kvp.Value.Max);
+        var max = Math.Max(kvp.Value.Min, kvp.Value.Max);
+        result[pt] = new TargetRange(min, max);
       }
     }
+
     return result;
   }
 
@@ -388,7 +547,113 @@ public static class ConfigManager
 
     tree.ProcessFrame -= OnProcessFrame;
     tree.ProcessFrame += OnProcessFrame;
+    EnsureConfigFileWatcher();
+    _nextFileChangePollAtMilliseconds = 0;
+    _nextRuntimeFingerprintPollAtMilliseconds = 0;
     _changeWatcherStarted = true;
+  }
+
+  /// <summary>
+  /// 初始化（或重建）配置文件监听器。
+  /// </summary>
+  private static void EnsureConfigFileWatcher()
+  {
+    try
+    {
+      var configPath = GetConfigFilePath();
+      if (string.IsNullOrWhiteSpace(configPath)) return;
+
+      var pathComparison = OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+      if (_configFileWatcher != null &&
+          string.Equals(_watchedConfigFilePath, configPath, pathComparison))
+      {
+        return;
+      }
+
+      DisposeConfigFileWatcher();
+
+      var directory = Path.GetDirectoryName(configPath);
+      var fileName = Path.GetFileName(configPath);
+      if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(fileName)) return;
+
+      if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
+
+      _configFileWatcher = new FileSystemWatcher(directory, fileName)
+      {
+        NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
+        IncludeSubdirectories = false,
+        EnableRaisingEvents = true
+      };
+
+      _configFileWatcher.Changed += OnConfigFileWatcherChanged;
+      _configFileWatcher.Created += OnConfigFileWatcherChanged;
+      _configFileWatcher.Renamed += OnConfigFileWatcherRenamed;
+      _configFileWatcher.Deleted += OnConfigFileWatcherChanged;
+
+      _watchedConfigFilePath = configPath;
+      _fileWatcherUnsupportedLogged = false;
+      RouteSuggestMod.Log($"Config file watcher enabled: {configPath}");
+    }
+    catch (Exception ex)
+    {
+      DisposeConfigFileWatcher();
+      if (_fileWatcherUnsupportedLogged) return;
+
+      _fileWatcherUnsupportedLogged = true;
+      RouteSuggestMod.LogWarning($"File watcher unavailable, fallback to polling only: {ex.Message}");
+    }
+  }
+
+  /// <summary>
+  /// 释放文件监听器资源。
+  /// </summary>
+  private static void DisposeConfigFileWatcher()
+  {
+    if (_configFileWatcher == null)
+    {
+      _watchedConfigFilePath = null;
+      return;
+    }
+
+    try
+    {
+      _configFileWatcher.EnableRaisingEvents = false;
+      _configFileWatcher.Changed -= OnConfigFileWatcherChanged;
+      _configFileWatcher.Created -= OnConfigFileWatcherChanged;
+      _configFileWatcher.Renamed -= OnConfigFileWatcherRenamed;
+      _configFileWatcher.Deleted -= OnConfigFileWatcherChanged;
+      _configFileWatcher.Dispose();
+    }
+    catch (Exception ex)
+    {
+      RouteSuggestMod.LogWarning($"Error disposing config file watcher: {ex.Message}");
+    }
+    finally
+    {
+      _configFileWatcher = null;
+      _watchedConfigFilePath = null;
+    }
+  }
+
+  /// <summary>
+  /// 文件监听器回调：记录“下一帧尝试重载”的标记。
+  /// </summary>
+  private static void OnConfigFileWatcherChanged(object sender, FileSystemEventArgs e)
+  {
+    if (_isSavingConfiguration) return;
+    _fileWatcherReloadPending = true;
+  }
+
+  /// <summary>
+  /// 文件重命名后，如果目标仍是配置文件，下一帧重载。
+  /// </summary>
+  private static void OnConfigFileWatcherRenamed(object sender, RenamedEventArgs e)
+  {
+    if (_isSavingConfiguration) return;
+    _fileWatcherReloadPending = true;
   }
 
   /// <summary>
@@ -398,7 +663,22 @@ public static class ConfigManager
   {
     if (_suppressChangeNotifications) return;
 
-    if (TryReloadConfigIfFileChanged()) return;
+    if (_fileWatcherReloadPending)
+    {
+      _fileWatcherReloadPending = false;
+      if (TryReloadConfigIfFileChanged(forceReload: true)) return;
+    }
+
+    var now = System.Environment.TickCount64;
+
+    if (now >= _nextFileChangePollAtMilliseconds)
+    {
+      _nextFileChangePollAtMilliseconds = now + FileChangePollIntervalMilliseconds;
+      if (TryReloadConfigIfFileChanged(forceReload: false)) return;
+    }
+
+    if (now < _nextRuntimeFingerprintPollAtMilliseconds) return;
+    _nextRuntimeFingerprintPollAtMilliseconds = now + RuntimeFingerprintPollIntervalMilliseconds;
 
     var currentFingerprint = BuildConfigFingerprint();
     if (_lastObservedConfigFingerprint == null)
@@ -418,7 +698,7 @@ public static class ConfigManager
   /// 若配置文件被外部修改，则重新加载并触发刷新。
   /// </summary>
   /// <returns>若已处理文件变更并触发刷新，返回 true。</returns>
-  private static bool TryReloadConfigIfFileChanged()
+  private static bool TryReloadConfigIfFileChanged(bool forceReload)
   {
     try
     {
@@ -482,32 +762,10 @@ public static class ConfigManager
   /// <summary>
   /// 计算当前配置的稳定指纹（用于检测是否发生实际变更）。
   /// </summary>
-  /// <returns>配置指纹哈希值。</returns>
-  private static int BuildConfigFingerprint()
+  /// <returns>配置指纹字符串。</returns>
+  private static string BuildConfigFingerprint()
   {
-    var hash = new HashCode();
-
-    hash.Add(CurrentHighlightType);
-    foreach (var config in PathConfigs.OrderBy(c => c.Name))
-    {
-      hash.Add(config.Name ?? string.Empty);
-      hash.Add(config.Enabled);
-      hash.Add(config.Priority);
-      hash.Add(config.Color.R);
-      hash.Add(config.Color.G);
-      hash.Add(config.Color.B);
-      hash.Add(config.Color.A);
-
-      if (config.TargetCounts == null) continue;
-      foreach (var kvp in config.TargetCounts.OrderBy(kvp => kvp.Key))
-      {
-        hash.Add((int)kvp.Key);
-        hash.Add(kvp.Value.Min);
-        hash.Add(kvp.Value.Max);
-      }
-    }
-
-    return hash.ToHashCode();
+    return ConfigSnapshotUtility.BuildFingerprint(CurrentHighlightType, PathConfigs);
   }
 
   /// <summary>
@@ -569,23 +827,7 @@ public static class ConfigManager
     /// </summary>
     [JsonPropertyName("scoring_weights")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public Dictionary<string, ScoreWeight> LegacyScoringWeights
-    {
-      get => null;
-      set
-      {
-        if (value == null || value.Count == 0) return;
-        TargetCounts ??= new Dictionary<string, ScoreWeight>();
-
-        foreach (var kvp in value)
-        {
-          if (!TargetCounts.ContainsKey(kvp.Key))
-          {
-            TargetCounts[kvp.Key] = kvp.Value;
-          }
-        }
-      }
-    }
+    public Dictionary<string, ScoreWeight> LegacyScoringWeights { get; set; }
   }
 
 }

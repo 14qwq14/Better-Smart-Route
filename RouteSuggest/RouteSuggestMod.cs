@@ -22,6 +22,16 @@ public static class RouteSuggestMod
   private static bool _runManagerWatcherStarted;
 
   /// <summary>
+  /// RunManager 绑定检查轮询间隔（毫秒）。
+  /// </summary>
+  private const long RunManagerPollIntervalMilliseconds = 500;
+
+  /// <summary>
+  /// 下一次允许进行 RunManager 重绑检查的时间戳（毫秒）。
+  /// </summary>
+  private static long _nextRunManagerPollAtMilliseconds;
+
+  /// <summary>
   /// 避免在 RunManager 暂不可用时重复刷屏日志。
   /// </summary>
   private static bool _missingRunManagerLogged;
@@ -95,6 +105,7 @@ public static class RouteSuggestMod
 
     tree.ProcessFrame -= OnProcessFrame;
     tree.ProcessFrame += OnProcessFrame;
+    _nextRunManagerPollAtMilliseconds = 0;
     _runManagerWatcherStarted = true;
   }
 
@@ -103,6 +114,10 @@ public static class RouteSuggestMod
   /// </summary>
   private static void OnProcessFrame()
   {
+    var now = System.Environment.TickCount64;
+    if (now < _nextRunManagerPollAtMilliseconds) return;
+
+    _nextRunManagerPollAtMilliseconds = now + RunManagerPollIntervalMilliseconds;
     EnsureRunManagerSubscriptions();
   }
 

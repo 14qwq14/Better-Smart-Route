@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reflection;
 using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -21,25 +22,6 @@ public static class RouteCalculator
     /// 按“配置名 -> 候选路径列表”缓存本次计算结果，供高亮模块使用。
     /// </summary>
     public static IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyList<MapPoint>>> CalculatedPaths => _calculatedPaths;
-
-    /// <summary>
-    /// 评分时会跟踪的房间类型。
-    /// </summary>
-    private static readonly MapPointType[] TrackedTypes =
-    {
-        MapPointType.RestSite,
-        MapPointType.Treasure,
-        MapPointType.Shop,
-        MapPointType.Monster,
-        MapPointType.Elite,
-        MapPointType.Unknown
-    };
-
-    /// <summary>
-    /// 房间类型到压缩状态索引的映射，避免高频 IndexOf。
-    /// </summary>
-    private static readonly IReadOnlyDictionary<MapPointType, int> TrackedTypeIndex =
-        TrackedTypes.Select((type, index) => new { type, index }).ToDictionary(x => x.type, x => x.index);
 
     /// <summary>
     /// 每个配置最多保留的候选路径数。
@@ -62,6 +44,11 @@ public static class RouteCalculator
     private const int MaxBacktrackSteps = 100_000;
 
     /// <summary>
+    /// 压缩状态可编码的最大房间类型槽位数（每槽 8 bit）。
+    /// </summary>
+    private const int MaxTrackedTypeSlots = 8;
+
+    /// <summary>
     /// 用于避免同一起点重复计算。
     /// </summary>
     private static MapPoint _lastStartPoint;
@@ -69,7 +56,27 @@ public static class RouteCalculator
     /// <summary>
     /// 配置指纹缓存：当配置发生变化时，即使起点不变也会触发重算。
     /// </summary>
-    private static int? _lastConfigFingerprint;
+    private static string _lastConfigFingerprint;
+
+    /// <summary>
+    /// RunManager 回退反射读取 RunState 的属性缓存。
+    /// </summary>
+    private static PropertyInfo _cachedRunStateProperty;
+
+    /// <summary>
+    /// 上次建立反射缓存时的 RunManager 运行时类型。
+    /// </summary>
+    private static Type _cachedRunManagerType;
+
+    /// <summary>
+    /// 避免在状态槽位溢出时刷屏日志。
+    /// </summary>
+    private static bool _stateSlotOverflowWarningLogged;
+
+    /// <summary>
+    /// 避免反射属性不存在时刷屏日志。
+    /// </summary>
+    private static bool _runStateReflectionMissingLogged;
 
     /// <summary>
     /// 失效内部缓存，强制下一次调用重新计算路径。
@@ -87,13 +94,9 @@ public static class RouteCalculator
     {
         var runState = RouteSuggestMod.RunState;
         var manager = RunManager.Instance;
-        if (runState == null && manager != null)
+        if (runState == null)
         {
-            var prop = manager.GetType().GetProperty("CurrentRun") ?? manager.GetType().GetProperty("Run");
-            if (prop != null)
-            {
-                runState = prop.GetValue(manager) as RunState;
-            }
+            runState = ResolveRunStateFromManager(manager);
         }
 
         if (runState == null)
@@ -129,6 +132,36 @@ public static class RouteCalculator
     }
 
     /// <summary>
+    /// 当入口态缓存为空时，尝试通过 RunManager 反射读取运行态（带属性缓存）。
+    /// </summary>
+    private static RunState ResolveRunStateFromManager(RunManager manager)
+    {
+        if (manager == null) return null;
+
+        var runtimeType = manager.GetType();
+        if (_cachedRunStateProperty == null || _cachedRunManagerType != runtimeType)
+        {
+            _cachedRunManagerType = runtimeType;
+            _cachedRunStateProperty = runtimeType.GetProperty("CurrentRun") ?? runtimeType.GetProperty("Run");
+
+            if (_cachedRunStateProperty == null)
+            {
+                if (!_runStateReflectionMissingLogged)
+                {
+                    RouteSuggestMod.LogWarning("UpdateBestPath fallback failed: RunManager has neither 'CurrentRun' nor 'Run' property.");
+                    _runStateReflectionMissingLogged = true;
+                }
+            }
+            else
+            {
+                _runStateReflectionMissingLogged = false;
+            }
+        }
+
+        return _cachedRunStateProperty?.GetValue(manager) as RunState;
+    }
+
+    /// <summary>
     /// DP 状态节点，记录可回溯到当前状态的前驱信息。
     /// </summary>
     private sealed class DpMemoState
@@ -148,6 +181,8 @@ public static class RouteCalculator
     private static Dictionary<string, IReadOnlyList<IReadOnlyList<MapPoint>>> FindAllOptimalPaths(MapPoint startPoint, List<PathConfig> configs)
     {
         var finalResult = new Dictionary<string, IReadOnlyList<IReadOnlyList<MapPoint>>>();
+        var configKeyMap = ConfigSnapshotUtility.BuildResultKeyMap(configs);
+        var trackedTypeIndex = BuildTrackedTypeIndex(configs);
 
         var reachableNodes = CollectReachableNodes(startPoint);
         var topoOrder = BuildTopologicalOrder(reachableNodes, out var hasCycle);
@@ -159,7 +194,7 @@ public static class RouteCalculator
 
         var dp = new Dictionary<MapPoint, Dictionary<ulong, DpMemoState>>();
         var startStateKey = 0UL;
-        if (TryGetTrackedTypeIndex(startPoint.PointType, out var startTypeIndex))
+        if (TryGetTrackedTypeIndex(startPoint.PointType, trackedTypeIndex, out var startTypeIndex))
         {
             startStateKey = AddToState(startStateKey, startTypeIndex, 1);
         }
@@ -183,7 +218,7 @@ public static class RouteCalculator
                     dp[child] = childStates;
                 }
 
-                var childTypeTracked = TryGetTrackedTypeIndex(child.PointType, out var childTypeIndex);
+                var childTypeTracked = TryGetTrackedTypeIndex(child.PointType, trackedTypeIndex, out var childTypeIndex);
                 foreach (var parentEntry in currentStates)
                 {
                     var childKey = childTypeTracked ? AddToState(parentEntry.Key, childTypeIndex, 1) : parentEntry.Key;
@@ -203,7 +238,6 @@ public static class RouteCalculator
             ? bossNodes
             : reachableNodes.Where(n => n.Children == null || n.Children.Count == 0).ToHashSet();
 
-        var configNameCounter = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var config in configs)
         {
             var endStateScores = new List<(MapPoint Node, ulong StateKey, int Score)>();
@@ -212,14 +246,14 @@ public static class RouteCalculator
                 if (!dp.TryGetValue(endNode, out var endStates)) continue;
                 foreach (var stateEntry in endStates)
                 {
-                    var score = EvaluateState(stateEntry.Key, config);
+                    var score = EvaluateState(stateEntry.Key, config, trackedTypeIndex);
                     endStateScores.Add((endNode, stateEntry.Key, score));
                 }
             }
 
             endStateScores.Sort((a, b) => b.Score.CompareTo(a.Score));
 
-            var uniquePaths = new List<List<MapPoint>>();
+            var uniquePaths = new List<(List<MapPoint> Path, int Score, string PathKey)>();
             var seenPathKeys = new HashSet<string>(StringComparer.Ordinal);
             var backtrackSteps = 0;
 
@@ -246,7 +280,7 @@ public static class RouteCalculator
                     var pathKey = BuildPathIdentity(path);
                     if (!seenPathKeys.Add(pathKey)) continue;
 
-                    uniquePaths.Add(path);
+                    uniquePaths.Add((path, candidate.Score, pathKey));
                     if (uniquePaths.Count >= MaxPathsPerConfig) break;
                 }
 
@@ -257,18 +291,20 @@ public static class RouteCalculator
                 }
             }
 
-            var sortedBest = uniquePaths
-                .OrderByDescending(path => config.CalculateScore(path))
-                .ThenBy(path => path.Count)
-                .ThenBy(BuildPathIdentity, StringComparer.Ordinal)
+            var selectedPaths = uniquePaths
+                .OrderByDescending(entry => entry.Score)
+                .ThenBy(entry => entry.PathKey, StringComparer.Ordinal)
+                .Select(entry => entry.Path)
                 .Take(MaxPathsPerConfig)
                 .ToList();
 
-            var exportPaths = ConfigManager.CurrentHighlightType == HighlightType.One && sortedBest.Count > 1
-                ? sortedBest.Take(1).ToList()
-                : sortedBest;
+            var exportPaths = ConfigManager.CurrentHighlightType == HighlightType.One && selectedPaths.Count > 1
+                ? selectedPaths.Take(1).ToList()
+                : selectedPaths;
 
-            var configKey = BuildConfigResultKey(config.Name, configNameCounter);
+            var configKey = configKeyMap.TryGetValue(config, out var resolvedKey)
+                ? resolvedKey
+                : (string.IsNullOrWhiteSpace(config.Name) ? "Unnamed Config" : config.Name);
             var readonlyPaths = new ReadOnlyCollection<IReadOnlyList<MapPoint>>(
                 exportPaths
                     .Select(path => (IReadOnlyList<MapPoint>)new ReadOnlyCollection<MapPoint>(path))
@@ -280,20 +316,39 @@ public static class RouteCalculator
     }
 
     /// <summary>
-    /// 生成配置输出键，避免重名配置覆盖结果。
+    /// 根据当前启用配置动态构建房间类型状态索引。
     /// </summary>
-    private static string BuildConfigResultKey(string name, Dictionary<string, int> usage)
+    private static IReadOnlyDictionary<MapPointType, int> BuildTrackedTypeIndex(IReadOnlyList<PathConfig> configs)
     {
-        var baseName = string.IsNullOrWhiteSpace(name) ? "Unnamed Config" : name;
-        if (!usage.TryGetValue(baseName, out var count))
+        var trackedTypes = new SortedSet<MapPointType>(Comparer<MapPointType>.Create((a, b) => ((int)a).CompareTo((int)b)));
+
+        if (configs != null)
         {
-            usage[baseName] = 1;
-            return baseName;
+            foreach (var config in configs)
+            {
+                if (config?.TargetCounts == null) continue;
+                foreach (var pointType in config.TargetCounts.Keys)
+                {
+                    trackedTypes.Add(pointType);
+                }
+            }
         }
 
-        count++;
-        usage[baseName] = count;
-        return $"{baseName} ({count})";
+        var indexMap = new Dictionary<MapPointType, int>();
+        var index = 0;
+        foreach (var pointType in trackedTypes)
+        {
+            if (index >= MaxTrackedTypeSlots)
+            {
+                WarnStateSlotOverflowOnce($"pointType={pointType}");
+                break;
+            }
+
+            indexMap[pointType] = index;
+            index++;
+        }
+
+        return indexMap;
     }
 
     /// <summary>
@@ -362,32 +417,10 @@ public static class RouteCalculator
     /// <summary>
     /// 基于当前配置生成稳定指纹，用于检测是否需要重新计算。
     /// </summary>
-    /// <returns>配置指纹哈希值。</returns>
-    private static int BuildConfigFingerprint()
+    /// <returns>配置指纹字符串。</returns>
+    private static string BuildConfigFingerprint()
     {
-        var hash = new HashCode();
-
-        hash.Add(ConfigManager.CurrentHighlightType);
-        foreach (var config in ConfigManager.PathConfigs.OrderBy(c => c.Name))
-        {
-            hash.Add(config.Name ?? string.Empty);
-            hash.Add(config.Enabled);
-            hash.Add(config.Priority);
-            hash.Add(config.Color.R);
-            hash.Add(config.Color.G);
-            hash.Add(config.Color.B);
-            hash.Add(config.Color.A);
-
-            if (config.TargetCounts == null) continue;
-            foreach (var kvp in config.TargetCounts.OrderBy(k => k.Key))
-            {
-                hash.Add((int)kvp.Key);
-                hash.Add(kvp.Value.Min);
-                hash.Add(kvp.Value.Max);
-            }
-        }
-
-        return hash.ToHashCode();
+        return ConfigSnapshotUtility.BuildFingerprint(ConfigManager.CurrentHighlightType, ConfigManager.PathConfigs);
     }
 
     /// <summary>
@@ -399,7 +432,11 @@ public static class RouteCalculator
     /// <returns>累加后的压缩状态。</returns>
     private static ulong AddToState(ulong state, int typeIndex, int amount)
     {
-        if (typeIndex < 0 || typeIndex >= 8) return state;
+        if (typeIndex < 0 || typeIndex >= MaxTrackedTypeSlots)
+        {
+            WarnStateSlotOverflowOnce($"typeIndex={typeIndex}");
+            return state;
+        }
 
         var shift = typeIndex * 8;
         var currentVal = (state >> shift) & 0xFF;
@@ -418,16 +455,34 @@ public static class RouteCalculator
     /// <returns>该房间类型计数。</returns>
     private static int GetFromState(ulong state, int typeIndex)
     {
-        if (typeIndex < 0 || typeIndex >= 8) return 0;
+        if (typeIndex < 0 || typeIndex >= MaxTrackedTypeSlots) return 0;
         return (int)((state >> (typeIndex * 8)) & 0xFF);
     }
 
     /// <summary>
     /// 尝试获取房间类型在压缩状态中的索引。
     /// </summary>
-    private static bool TryGetTrackedTypeIndex(MapPointType pointType, out int index)
+    private static bool TryGetTrackedTypeIndex(MapPointType pointType, IReadOnlyDictionary<MapPointType, int> trackedTypeIndex, out int index)
     {
-        return TrackedTypeIndex.TryGetValue(pointType, out index);
+        index = -1;
+        if (trackedTypeIndex == null) return false;
+        if (!trackedTypeIndex.TryGetValue(pointType, out index)) return false;
+        if (index < MaxTrackedTypeSlots) return true;
+
+        WarnStateSlotOverflowOnce($"pointType={pointType}, index={index}");
+        index = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// 当状态槽位不足时仅告警一次，避免刷屏。
+    /// </summary>
+    private static void WarnStateSlotOverflowOnce(string details)
+    {
+        if (_stateSlotOverflowWarningLogged) return;
+
+        _stateSlotOverflowWarningLogged = true;
+        RouteSuggestMod.LogWarning($"State encoding supports up to {MaxTrackedTypeSlots} tracked map-point types; extra tracked type is ignored ({details}).");
     }
 
     /// <summary>
@@ -436,7 +491,7 @@ public static class RouteCalculator
     /// <param name="stateKey">压缩状态。</param>
     /// <param name="config">评分配置。</param>
     /// <returns>状态分值。</returns>
-    private static int EvaluateState(ulong stateKey, PathConfig config)
+    private static int EvaluateState(ulong stateKey, PathConfig config, IReadOnlyDictionary<MapPointType, int> trackedTypeIndex)
     {
         if (config.TargetCounts == null || config.TargetCounts.Count == 0) return 0;
 
@@ -444,27 +499,12 @@ public static class RouteCalculator
         foreach (var kvp in config.TargetCounts)
         {
             var actual = 0;
-            if (TryGetTrackedTypeIndex(kvp.Key, out var typeIndex))
+            if (TryGetTrackedTypeIndex(kvp.Key, trackedTypeIndex, out var typeIndex))
             {
                 actual = GetFromState(stateKey, typeIndex);
             }
 
-            var range = kvp.Value;
-            if (actual < range.Min)
-            {
-                var diff = range.Min - actual;
-                score -= diff * diff * 50;
-            }
-            else if (actual > range.Max)
-            {
-                var diff = actual - range.Max;
-                score -= diff * diff * 50;
-            }
-            else
-            {
-                var mid = (range.Min + range.Max) / 2.0;
-                score += (int)(10 - Math.Abs(actual - mid) * 2);
-            }
+            score += PathConfig.EvaluateTargetRangeScore(actual, kvp.Value);
         }
 
         return score;

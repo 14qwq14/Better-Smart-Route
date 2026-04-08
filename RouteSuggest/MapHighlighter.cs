@@ -20,6 +20,16 @@ public static class MapHighlighter
   private static readonly Dictionary<TextureRect, (Color color, Vector2 scale)> OriginalTickProperties = new();
 
   /// <summary>
+  /// 高亮缩放倍率（相对于 tick 原始缩放）。
+  /// </summary>
+  private const float HighlightScaleMultiplier = 1.4f;
+
+  /// <summary>
+  /// 无高亮时清理失效 tick 缓存的轮询间隔（毫秒）。
+  /// </summary>
+  private const long InvalidTickCleanupIntervalMilliseconds = 2000;
+
+  /// <summary>
   /// 反射获取 <c>NMapScreen</c> 私有字段 <c>_paths</c>（地图连线 -> tick 列表）。
   /// </summary>
   private static FieldInfo _pathsField;
@@ -36,6 +46,11 @@ public static class MapHighlighter
   /// 当请求刷新时地图实例暂不可用，先挂起，等地图实例出现后再补绘。
   /// </summary>
   private static bool _pendingHighlightRequest = false;
+
+  /// <summary>
+  /// 下一次允许进行失效 tick 缓存清理的时间戳（毫秒）。
+  /// </summary>
+  private static long _nextInvalidTickCleanupAtMilliseconds;
 
   /// <summary>
   /// 初始化反射缓存，避免每次高亮都走反射查找。
@@ -78,7 +93,9 @@ public static class MapHighlighter
       return;
     }
 
+    tree.ProcessFrame -= OnProcessFrame;
     tree.ProcessFrame += OnProcessFrame;
+    _nextInvalidTickCleanupAtMilliseconds = 0;
     _autoHookStarted = true;
   }
 
@@ -87,39 +104,64 @@ public static class MapHighlighter
   /// </summary>
   private static void OnProcessFrame()
   {
-    TryHookMapScreenInstance();
-
-    if (!_pendingHighlightRequest) return;
+    var now = System.Environment.TickCount64;
+    if (now >= _nextInvalidTickCleanupAtMilliseconds)
+    {
+      _nextInvalidTickCleanupAtMilliseconds = now + InvalidTickCleanupIntervalMilliseconds;
+      PruneInvalidTickCache();
+    }
 
     var mapScreen = NMapScreen.Instance;
+    TryHookMapScreenInstance(mapScreen);
+
+    if (!_pendingHighlightRequest) return;
     if (mapScreen == null) return;
 
     _pendingHighlightRequest = false;
-    RouteCalculator.UpdateBestPath();
     HighlightBestPath();
   }
 
   /// <summary>
   /// 若出现新的地图界面实例，解除旧绑定并绑定到新实例。
   /// </summary>
-  private static void TryHookMapScreenInstance()
+  private static void TryHookMapScreenInstance(NMapScreen mapScreen = null)
   {
-    var mapScreen = NMapScreen.Instance;
-    if (mapScreen == null || mapScreen == _hookedMapScreen) return;
-
-    if (_hookedMapScreen != null)
+    mapScreen ??= NMapScreen.Instance;
+    if (mapScreen == null)
     {
-      try { _hookedMapScreen.Opened -= OnMapScreenOpened; }
-      catch (Exception ex)
-      {
-        RouteSuggestMod.LogWarning($"Failed to unhook previous map screen Opened event: {ex.Message}");
-      }
+      UnhookCurrentMapScreen();
+      return;
     }
+
+    if (mapScreen == _hookedMapScreen) return;
+
+    UnhookCurrentMapScreen();
 
     mapScreen.Opened -= OnMapScreenOpened;
     mapScreen.Opened += OnMapScreenOpened;
     _hookedMapScreen = mapScreen;
     RouteSuggestMod.Log("Hooked map screen Opened event");
+  }
+
+  /// <summary>
+  /// 解绑当前已记录地图实例的事件。
+  /// </summary>
+  private static void UnhookCurrentMapScreen()
+  {
+    if (_hookedMapScreen == null) return;
+
+    try
+    {
+      _hookedMapScreen.Opened -= OnMapScreenOpened;
+    }
+    catch (Exception ex)
+    {
+      RouteSuggestMod.LogWarning($"Failed to unhook previous map screen Opened event: {ex.Message}");
+    }
+    finally
+    {
+      _hookedMapScreen = null;
+    }
   }
 
   /// <summary>
@@ -129,8 +171,8 @@ public static class MapHighlighter
   {
     if (!_autoHookStarted) StartAutoMapScreenHook();
 
-    TryHookMapScreenInstance();
     var mapScreen = NMapScreen.Instance;
+    TryHookMapScreenInstance(mapScreen);
 
     // 此时如果已经拿到了 mapScreen 的实例（即使从界面外调用的），尝试直接执行一次渲染高亮
     // 这个方法也是我们在设置面板中调节颜色或数值时，能使设置“实时生效”肉眼可见的关键代码
@@ -169,11 +211,7 @@ public static class MapHighlighter
   /// 根据当前最佳路径结果对地图路径进行高亮渲染。
   /// </summary>
   public static void HighlightBestPath()
-
-
   {
-
-
     if (!_reflectionInitialized)
     {
       InitializeReflection();
@@ -189,14 +227,12 @@ public static class MapHighlighter
       }
     }
 
-
     ClearPathHighlighting();
 
     if (RouteCalculator.CalculatedPaths.Count == 0) return;
 
     try
     {
-
       var mapScreen = NMapScreen.Instance;
       if (mapScreen == null) return;
 
@@ -217,7 +253,9 @@ public static class MapHighlighter
         if (segments.Count > 0) pathSegments[kvp.Key] = segments;
       }
 
-      var sortedConfigs = ConfigManager.PathConfigs.Where(c => c.Enabled).OrderBy(c => c.Priority).ToList();
+      var enabledConfigs = ConfigManager.PathConfigs.Where(c => c.Enabled).ToList();
+      var configKeyMap = ConfigSnapshotUtility.BuildResultKeyMap(enabledConfigs);
+      var sortedConfigs = enabledConfigs.OrderBy(c => c.Priority).ToList();
 
       var segmentColors = new Dictionary<(MapCoord, MapCoord), Color>();
 
@@ -225,7 +263,9 @@ public static class MapHighlighter
       var segmentTopPriority = new Dictionary<(MapCoord, MapCoord), int>();
       foreach (var config in sortedConfigs)
       {
-        if (!pathSegments.TryGetValue(config.Name, out var segments)) continue;
+        if (!configKeyMap.TryGetValue(config, out var configKey)) continue;
+        if (!pathSegments.TryGetValue(configKey, out var segments)) continue;
+
         foreach (var segment in segments)
         {
           var normalizedKey = segment.Item1.CompareTo(segment.Item2) <= 0 ? segment : (segment.Item2, segment.Item1);
@@ -242,7 +282,7 @@ public static class MapHighlighter
       foreach (var kvp in segmentColors)
       {
         var segment = kvp.Key;
-        object pathTicks = paths.Contains(segment) ? paths[segment] : null;
+        if (!TryGetPathTicks(paths, segment, out var pathTicks)) continue;
 
         if (pathTicks is IReadOnlyList<TextureRect> ticks)
         {
@@ -252,7 +292,7 @@ public static class MapHighlighter
             {
               if (!OriginalTickProperties.ContainsKey(tick)) OriginalTickProperties[tick] = (tick.Modulate, tick.Scale);
               tick.Modulate = kvp.Value;
-              tick.Scale = new Vector2(1.4f, 1.4f);
+              tick.Scale = OriginalTickProperties[tick].scale * HighlightScaleMultiplier;
             }
           }
         }
@@ -261,6 +301,52 @@ public static class MapHighlighter
     catch (Exception ex)
     {
       RouteSuggestMod.LogError($"Error highlighting path: {ex.Message}");
+    }
+  }
+
+  /// <summary>
+  /// 兼容有向/无向键：优先按原键查找，失败后再尝试反向键。
+  /// </summary>
+  private static bool TryGetPathTicks(System.Collections.IDictionary paths, (MapCoord, MapCoord) segment, out object pathTicks)
+  {
+    pathTicks = null;
+    if (paths == null) return false;
+
+    if (paths.Contains(segment))
+    {
+      pathTicks = paths[segment];
+      return true;
+    }
+
+    var reversed = (segment.Item2, segment.Item1);
+    if (paths.Contains(reversed))
+    {
+      pathTicks = paths[reversed];
+      return true;
+    }
+
+    return false;
+  }
+
+  /// <summary>
+  /// 清理已经失效的 tick 缓存，避免缓存长期增长。
+  /// </summary>
+  private static void PruneInvalidTickCache()
+  {
+    if (OriginalTickProperties.Count == 0) return;
+
+    var toRemove = new List<TextureRect>();
+    foreach (var tick in OriginalTickProperties.Keys)
+    {
+      if (tick == null || !GodotObject.IsInstanceValid(tick))
+      {
+        toRemove.Add(tick);
+      }
+    }
+
+    foreach (var tick in toRemove)
+    {
+      OriginalTickProperties.Remove(tick);
     }
   }
 

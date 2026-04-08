@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using Godot;
 using MegaCrit.Sts2.Core.Map;
 
@@ -17,6 +18,11 @@ internal static class ModConfigBridge
   private static Type _apiType;
   private static Type _entryType;
   private static Type _configTypeEnum;
+
+  /// <summary>
+  /// 反射属性缓存，避免对同类型重复 GetProperty。
+  /// </summary>
+  private static readonly Dictionary<(Type type, string name), PropertyInfo> PropertyCache = new();
 
   internal static bool IsAvailable => _available;
 
@@ -57,23 +63,59 @@ internal static class ModConfigBridge
   {
     try
     {
-      var allTypes = AppDomain.CurrentDomain.GetAssemblies()
-        .SelectMany(a =>
-        {
-          try { return a.GetTypes(); }
-          catch { return Type.EmptyTypes; }
-        })
+      _apiType = null;
+      _entryType = null;
+      _configTypeEnum = null;
+
+      var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+      var preferredAssemblies = assemblies
+        .Where(IsLikelyModConfigAssembly)
         .ToArray();
 
-      _apiType = allTypes.FirstOrDefault(t => t.FullName == "ModConfig.ModConfigApi");
-      _entryType = allTypes.FirstOrDefault(t => t.FullName == "ModConfig.ConfigEntry");
-      _configTypeEnum = allTypes.FirstOrDefault(t => t.FullName == "ModConfig.ConfigType");
+      if (preferredAssemblies.Length > 0)
+      {
+        TryResolveTypesFromAssemblies(preferredAssemblies);
+      }
+
+      if (_apiType == null || _entryType == null || _configTypeEnum == null)
+      {
+        // 兜底：若按名称筛选失败，再回退扫描所有已加载程序集。
+        TryResolveTypesFromAssemblies(assemblies);
+      }
+
       _available = _apiType != null && _entryType != null && _configTypeEnum != null;
     }
     catch (Exception ex)
     {
       _available = false;
       RouteSuggestMod.LogError($"ModConfigBridge detect failed: {ex.Message}");
+    }
+  }
+
+  /// <summary>
+  /// 判断程序集是否可能包含 ModConfig API。
+  /// </summary>
+  private static bool IsLikelyModConfigAssembly(Assembly assembly)
+  {
+    var name = assembly?.GetName()?.Name;
+    return !string.IsNullOrWhiteSpace(name) && name.Contains("ModConfig", StringComparison.OrdinalIgnoreCase);
+  }
+
+  /// <summary>
+  /// 在指定程序集集合中按全名直接定位目标类型，避免全量 GetTypes() 扫描。
+  /// </summary>
+  private static void TryResolveTypesFromAssemblies(IEnumerable<Assembly> assemblies)
+  {
+    foreach (var assembly in assemblies)
+    {
+      _apiType ??= assembly.GetType("ModConfig.ModConfigApi", throwOnError: false, ignoreCase: false);
+      _entryType ??= assembly.GetType("ModConfig.ConfigEntry", throwOnError: false, ignoreCase: false);
+      _configTypeEnum ??= assembly.GetType("ModConfig.ConfigType", throwOnError: false, ignoreCase: false);
+
+      if (_apiType != null && _entryType != null && _configTypeEnum != null)
+      {
+        return;
+      }
     }
   }
 
@@ -91,10 +133,7 @@ internal static class ModConfigBridge
         ["zhs"] = "路线推荐"
       };
 
-      var registerMethod = _apiType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-        .Where(m => m.Name == "Register")
-        .OrderByDescending(m => m.GetParameters().Length)
-        .FirstOrDefault();
+      var registerMethod = ResolveRegisterMethod();
 
       if (registerMethod == null)
       {
@@ -102,19 +141,79 @@ internal static class ModConfigBridge
         return;
       }
 
-      if (registerMethod.GetParameters().Length == 4)
+      var paramCount = registerMethod.GetParameters().Length;
+      if (paramCount == 4)
       {
         registerMethod.Invoke(null, new object[] { "RouteSuggest", displayNames["en"], displayNames, entries });
       }
-      else
+      else if (paramCount == 3)
       {
         registerMethod.Invoke(null, new object[] { "RouteSuggest", displayNames["en"], entries });
+      }
+      else
+      {
+        RouteSuggestMod.LogError($"ModConfigBridge: Unsupported Register overload with {paramCount} parameters.");
       }
     }
     catch (Exception ex)
     {
       RouteSuggestMod.LogError($"ModConfigBridge register failed: {ex}");
     }
+  }
+
+  /// <summary>
+  /// 优先按签名解析 Register 重载，避免“参数最多即最新”带来的误判。
+  /// </summary>
+  private static MethodInfo ResolveRegisterMethod()
+  {
+    var methods = _apiType
+      .GetMethods(BindingFlags.Public | BindingFlags.Static)
+      .Where(m => m.Name == "Register")
+      .ToList();
+
+    // 优先 4 参：Register(string id, string displayName, IDictionary<string,string> labels, ConfigEntry[] entries)
+    foreach (var method in methods)
+    {
+      var ps = method.GetParameters();
+      if (ps.Length != 4) continue;
+      if (ps[0].ParameterType != typeof(string) || ps[1].ParameterType != typeof(string)) continue;
+      if (!typeof(IDictionary<string, string>).IsAssignableFrom(ps[2].ParameterType)) continue;
+      if (!IsCompatibleEntryCollectionParameter(ps[3].ParameterType)) continue;
+
+      return method;
+    }
+
+    // 其次 3 参：Register(string id, string displayName, ConfigEntry[] entries)
+    foreach (var method in methods)
+    {
+      var ps = method.GetParameters();
+      if (ps.Length != 3) continue;
+      if (ps[0].ParameterType != typeof(string) || ps[1].ParameterType != typeof(string)) continue;
+      if (!IsCompatibleEntryCollectionParameter(ps[2].ParameterType)) continue;
+
+      return method;
+    }
+
+    // 最后兜底，保持向后兼容。
+    return methods
+      .OrderByDescending(m => m.GetParameters().Length)
+      .FirstOrDefault();
+  }
+
+  /// <summary>
+  /// 判断参数类型是否可接收构建出的 entries 数组。
+  /// </summary>
+  private static bool IsCompatibleEntryCollectionParameter(Type parameterType)
+  {
+    if (parameterType == null || _entryType == null) return false;
+
+    if (parameterType.IsArray)
+    {
+      var elementType = parameterType.GetElementType();
+      return elementType != null && elementType.IsAssignableFrom(_entryType);
+    }
+
+    return parameterType.IsAssignableFrom(_entryType.MakeArrayType());
   }
 
   private static readonly MapPointType[] TrackedTypes = new[]
@@ -266,7 +365,8 @@ internal static class ModConfigBridge
             cfgRef.TargetCounts ??= new Dictionary<MapPointType, TargetRange>();
             if (!cfgRef.TargetCounts.TryGetValue(pt, out var oldRange)) oldRange = new TargetRange(minVal, 15);
 
-            cfgRef.TargetCounts[pt] = new TargetRange(minVal, oldRange.Max);
+            var normalizedMax = Math.Max(oldRange.Max, minVal);
+            cfgRef.TargetCounts[pt] = new TargetRange(minVal, normalizedMax);
             PersistConfigAndRefresh($"{cfgRef.Name}.{ptName}.Min");
           }));
         }));
@@ -290,7 +390,8 @@ internal static class ModConfigBridge
             cfgRef.TargetCounts ??= new Dictionary<MapPointType, TargetRange>();
             if (!cfgRef.TargetCounts.TryGetValue(pt, out var oldRange)) oldRange = new TargetRange(0, maxVal);
 
-            cfgRef.TargetCounts[pt] = new TargetRange(oldRange.Min, maxVal);
+            var normalizedMin = Math.Min(oldRange.Min, maxVal);
+            cfgRef.TargetCounts[pt] = new TargetRange(normalizedMin, maxVal);
             PersistConfigAndRefresh($"{cfgRef.Name}.{ptName}.Max");
           }));
         }));
@@ -328,19 +429,24 @@ internal static class ModConfigBridge
   {
     if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-    var chars = input
-      .Trim()
-      .ToLowerInvariant()
-      .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')
-      .ToArray();
+    var builder = new StringBuilder(input.Length);
+    bool lastUnderscore = false;
 
-    var normalized = new string(chars);
-    while (normalized.Contains("__", StringComparison.Ordinal))
+    foreach (var ch in input.Trim())
     {
-      normalized = normalized.Replace("__", "_", StringComparison.Ordinal);
+      if (char.IsLetterOrDigit(ch))
+      {
+        builder.Append(char.ToLowerInvariant(ch));
+        lastUnderscore = false;
+      }
+      else if (!lastUnderscore)
+      {
+        builder.Append('_');
+        lastUnderscore = true;
+      }
     }
 
-    return normalized.Trim('_');
+    return builder.ToString().Trim('_');
   }
 
   /// <summary>
@@ -383,7 +489,16 @@ internal static class ModConfigBridge
 
   private static void Set(object obj, string name, object value)
   {
-    obj.GetType().GetProperty(name)?.SetValue(obj, value);
+    if (obj == null || string.IsNullOrWhiteSpace(name)) return;
+
+    var key = (obj.GetType(), name);
+    if (!PropertyCache.TryGetValue(key, out var property))
+    {
+      property = key.Item1.GetProperty(name);
+      PropertyCache[key] = property;
+    }
+
+    property?.SetValue(obj, value);
   }
 
   private static Dictionary<string, string> L(string en, string zhs)
