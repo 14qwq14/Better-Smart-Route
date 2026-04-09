@@ -31,7 +31,7 @@
 | Aggressive (Red) / 激进        | `#FF0000` |   50   | `Elite: 15-15`   |
 | Question marks (Yellow) / 未知 | `#FFFF00` |   75   | `Unknown: 15-15` |
 
-## 安装（玩家）
+## 安装
 
 1. 从 GitHub Releases 下载发布包（zip）。
 2. 解压后将模组文件放入游戏 `mods` 目录。
@@ -84,7 +84,7 @@
 - `Elite`
 - `Unknown`
 
-## 从源码构建（开发者）
+## 从源码构建
 
 ### 环境要求
 
@@ -113,7 +113,7 @@
 3. 生成 `dist/`
 4. 打包 `RouteSuggest-v<version>.zip`
 
-## 项目结构（精简后）
+## 项目结构
 
 ```text
 RouteSuggest/

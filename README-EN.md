@@ -31,7 +31,7 @@ RouteSuggest computes optimal map routes based on your target room-count ranges 
 | Aggressive (Red) / 激进        | `#FF0000` |    50    | `Elite: 15-15`        |
 | Question marks (Yellow) / 未知 | `#FFFF00` |    75    | `Unknown: 15-15`      |
 
-## Installation (Players)
+## Installation
 
 1. Download the latest release zip from GitHub Releases.
 2. Extract and copy mod files into the game's `mods` folder.
@@ -84,7 +84,7 @@ Supported room types in `target_counts` (legacy `scoring_weights` is still accep
 - `Elite`
 - `Unknown`
 
-## Build from Source (Developers)
+## Build from Source
 
 ### Prerequisites
 
@@ -117,7 +117,7 @@ Build scripts automatically:
 3. Generate `dist/`
 4. Package `RouteSuggest-v<version>.zip`
 
-## Project Structure (cleaned)
+## Project Structure 
 
 ```text
 RouteSuggest/
