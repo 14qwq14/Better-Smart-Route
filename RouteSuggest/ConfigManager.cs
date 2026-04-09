@@ -20,7 +20,38 @@ public static class ConfigManager
   /// <summary>
   /// 当前配置文件 schema 版本号。
   /// </summary>
-  private const int CurrentSchemaVersion = 4;
+  private const int CurrentSchemaVersion = 5;
+
+  /// <summary>
+  /// 每个配置默认最多导出路径数。
+  /// </summary>
+  private const int DefaultMaxPathsPerConfig = 3;
+
+  /// <summary>
+  /// 每个配置最多导出路径数下限。
+  /// </summary>
+  private const int MinMaxPathsPerConfig = 1;
+
+  /// <summary>
+  /// 每个配置最多导出路径数上限。
+  /// </summary>
+  private const int MaxMaxPathsPerConfig = 12;
+
+  /// <summary>
+  /// 配置文件写盘序列化选项。
+  /// </summary>
+  private static readonly JsonSerializerOptions ConfigWriteJsonOptions = new JsonSerializerOptions
+  {
+    WriteIndented = true
+  };
+
+  /// <summary>
+  /// 配置文件读盘反序列化选项。
+  /// </summary>
+  private static readonly JsonSerializerOptions ConfigReadJsonOptions = new JsonSerializerOptions
+  {
+    PropertyNameCaseInsensitive = true
+  };
 
   /// <summary>
   /// 回退路径标记，表示当前路径来自用户目录回退。
@@ -108,6 +139,11 @@ public static class ConfigManager
   private static bool _suppressChangeNotifications = false;
 
   /// <summary>
+  /// 每个配置最多导出路径数（运行时可调，自动夹取合法范围）。
+  /// </summary>
+  private static int _maxPathsPerConfig = DefaultMaxPathsPerConfig;
+
+  /// <summary>
   /// 当前生效的路径配置集合。
   /// </summary>
   public static List<PathConfig> PathConfigs { get; private set; } = new List<PathConfig>();
@@ -116,6 +152,15 @@ public static class ConfigManager
   /// 当前高亮模式（单路线 / 多路线）。
   /// </summary>
   public static HighlightType CurrentHighlightType { get; set; } = HighlightType.One;
+
+  /// <summary>
+  /// 每个配置最多保留的候选路径数量。
+  /// </summary>
+  public static int MaxPathsPerConfig
+  {
+    get => _maxPathsPerConfig;
+    set => _maxPathsPerConfig = ClampMaxPathsPerConfig(value);
+  }
 
   /// <summary>
   /// 内置默认路线配置集合。
@@ -148,6 +193,7 @@ public static class ConfigManager
   public static void ResetToDefault()
   {
     CurrentHighlightType = HighlightType.One;
+    MaxPathsPerConfig = DefaultMaxPathsPerConfig;
     PathConfigs.Clear();
     foreach (var defaultConfig in DefaultPathConfigs)
     {
@@ -225,6 +271,7 @@ public static class ConfigManager
         {
           SchemaVersion = CurrentSchemaVersion,
           HighlightType = CurrentHighlightType.ToString(),
+          MaxPathsPerConfig = MaxPathsPerConfig,
           PathConfigs = PathConfigs
             .Where(config => config != null)
             .Select(config => new PathConfigEntry
@@ -245,8 +292,7 @@ public static class ConfigManager
             .ToList()
         };
 
-        var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
-        File.WriteAllText(configPath, JsonSerializer.Serialize(configData, options));
+        File.WriteAllText(configPath, JsonSerializer.Serialize(configData, ConfigWriteJsonOptions));
       }
       finally
       {
@@ -287,7 +333,7 @@ public static class ConfigManager
         return;
       }
 
-      var configData = JsonSerializer.Deserialize<ConfigFile>(File.ReadAllText(configPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+      var configData = JsonSerializer.Deserialize<ConfigFile>(File.ReadAllText(configPath), ConfigReadJsonOptions);
       if (configData == null)
       {
         RouteSuggestMod.LogWarning("Config deserialization returned null; keeping in-memory defaults.");
@@ -306,6 +352,8 @@ public static class ConfigManager
         CurrentHighlightType = loadedType;
       else if (!string.IsNullOrWhiteSpace(configData.HighlightType))
         RouteSuggestMod.LogWarning($"Unknown highlight_type '{configData.HighlightType}', keeping current value '{CurrentHighlightType}'.");
+
+      MaxPathsPerConfig = ClampMaxPathsPerConfig(configData.MaxPathsPerConfig ?? DefaultMaxPathsPerConfig);
 
       if (configData.PathConfigs != null && configData.PathConfigs.Count > 0)
       {
@@ -376,6 +424,11 @@ public static class ConfigManager
           configData.SchemaVersion = 4;
           migrated = true;
           break;
+        case 4:
+          MigrateV4ToV5(configData);
+          configData.SchemaVersion = 5;
+          migrated = true;
+          break;
         default:
           RouteSuggestMod.LogWarning($"Unknown legacy schema v{configData.SchemaVersion}; applying best-effort migration to v{CurrentSchemaVersion}.");
           MigrateToCurrentBestEffort(configData);
@@ -433,10 +486,26 @@ public static class ConfigManager
   }
 
   /// <summary>
+  /// v4 -> v5 迁移：补充 max_paths_per_config。
+  /// </summary>
+  private static void MigrateV4ToV5(ConfigFile configData)
+  {
+    if (!configData.MaxPathsPerConfig.HasValue || configData.MaxPathsPerConfig.Value <= 0)
+    {
+      configData.MaxPathsPerConfig = DefaultMaxPathsPerConfig;
+    }
+  }
+
+  /// <summary>
   /// 未知旧版本的最佳努力迁移。
   /// </summary>
   private static void MigrateToCurrentBestEffort(ConfigFile configData)
   {
+    if (!configData.MaxPathsPerConfig.HasValue || configData.MaxPathsPerConfig.Value <= 0)
+    {
+      configData.MaxPathsPerConfig = DefaultMaxPathsPerConfig;
+    }
+
     if (configData.PathConfigs == null) return;
 
     foreach (var path in configData.PathConfigs)
@@ -538,15 +607,14 @@ public static class ConfigManager
   {
     if (_changeWatcherStarted) return;
 
-    var tree = Engine.GetMainLoop() as SceneTree;
-    if (tree == null)
+    if (!GlobalFrameWatcher.EnsureStarted())
     {
-      RouteSuggestMod.LogError("Failed to start config watcher: SceneTree is not ready");
+      RouteSuggestMod.LogError("Failed to start config watcher: GlobalFrameWatcher is not ready");
       return;
     }
 
-    tree.ProcessFrame -= OnProcessFrame;
-    tree.ProcessFrame += OnProcessFrame;
+    GlobalFrameWatcher.FrameTick -= OnProcessFrame;
+    GlobalFrameWatcher.FrameTick += OnProcessFrame;
     EnsureConfigFileWatcher();
     _nextFileChangePollAtMilliseconds = 0;
     _nextRuntimeFingerprintPollAtMilliseconds = 0;
@@ -706,7 +774,7 @@ public static class ConfigManager
       if (!File.Exists(configPath)) return false;
 
       var currentWriteTicks = File.GetLastWriteTimeUtc(configPath).Ticks;
-      if (currentWriteTicks == _lastObservedConfigWriteTimeTicks) return false;
+      if (!forceReload && currentWriteTicks == _lastObservedConfigWriteTimeTicks) return false;
 
       _lastObservedConfigWriteTimeTicks = currentWriteTicks;
 
@@ -765,7 +833,16 @@ public static class ConfigManager
   /// <returns>配置指纹字符串。</returns>
   private static string BuildConfigFingerprint()
   {
-    return ConfigSnapshotUtility.BuildFingerprint(CurrentHighlightType, PathConfigs);
+    return ConfigSnapshotUtility.BuildFingerprint(CurrentHighlightType, PathConfigs)
+      + ";max_paths=" + MaxPathsPerConfig;
+  }
+
+  /// <summary>
+  /// 对每配置路径上限进行范围夹取。
+  /// </summary>
+  private static int ClampMaxPathsPerConfig(int value)
+  {
+    return Math.Clamp(value, MinMaxPathsPerConfig, MaxMaxPathsPerConfig);
   }
 
   /// <summary>
@@ -793,6 +870,7 @@ public static class ConfigManager
     /// </summary>
     [JsonPropertyName("schema_version")] public int SchemaVersion { get; set; }
     [JsonPropertyName("highlight_type")] public string HighlightType { get; set; }
+    [JsonPropertyName("max_paths_per_config")] public int? MaxPathsPerConfig { get; set; }
     [JsonPropertyName("path_configs")] public List<PathConfigEntry> PathConfigs { get; set; }
   }
 

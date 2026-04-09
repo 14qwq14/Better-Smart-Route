@@ -1,5 +1,6 @@
 ﻿using Godot;
 using System;
+using System.Diagnostics;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -37,6 +38,11 @@ public static class RouteSuggestMod
   private static bool _missingRunManagerLogged;
 
   /// <summary>
+  /// 缓存的游戏版本摘要字符串（用于反射故障诊断）。
+  /// </summary>
+  private static string _cachedGameVersionSummary;
+
+  /// <summary>
   /// 当前 Run 的运行态缓存，供路径计算器读取。
   /// </summary>
   public static RunState RunState { get; private set; }
@@ -70,6 +76,42 @@ public static class RouteSuggestMod
   }
 
   /// <summary>
+  /// 获取当前游戏程序集版本摘要，便于兼容性日志定位。
+  /// </summary>
+  public static string GetGameVersionSummary()
+  {
+    if (!string.IsNullOrWhiteSpace(_cachedGameVersionSummary)) return _cachedGameVersionSummary;
+
+    try
+    {
+      var gameAssembly = typeof(RunManager).Assembly;
+      var assemblyVersion = gameAssembly.GetName().Version?.ToString() ?? "unknown";
+
+      string fileVersion = "unknown";
+      try
+      {
+        if (!string.IsNullOrWhiteSpace(gameAssembly.Location))
+        {
+          var fileInfo = FileVersionInfo.GetVersionInfo(gameAssembly.Location);
+          fileVersion = fileInfo.FileVersion ?? "unknown";
+        }
+      }
+      catch
+      {
+        // 文件版本读取失败不影响主逻辑，保持 unknown。
+      }
+
+      _cachedGameVersionSummary = $"assembly={assemblyVersion}, file={fileVersion}";
+    }
+    catch (Exception ex)
+    {
+      _cachedGameVersionSummary = $"unknown ({ex.Message})";
+    }
+
+    return _cachedGameVersionSummary;
+  }
+
+  /// <summary>
   /// Mod 入口：初始化配置、订阅运行事件，并启动地图高亮模块。
   /// </summary>
   public static void ModLoaded()
@@ -96,15 +138,14 @@ public static class RouteSuggestMod
   {
     if (_runManagerWatcherStarted) return;
 
-    var tree = Engine.GetMainLoop() as SceneTree;
-    if (tree == null)
+    if (!GlobalFrameWatcher.EnsureStarted())
     {
-      LogWarning("SceneTree is not ready; RunManager watcher not started.");
+      LogWarning("GlobalFrameWatcher is not ready; RunManager watcher not started.");
       return;
     }
 
-    tree.ProcessFrame -= OnProcessFrame;
-    tree.ProcessFrame += OnProcessFrame;
+    GlobalFrameWatcher.FrameTick -= OnProcessFrame;
+    GlobalFrameWatcher.FrameTick += OnProcessFrame;
     _nextRunManagerPollAtMilliseconds = 0;
     _runManagerWatcherStarted = true;
   }

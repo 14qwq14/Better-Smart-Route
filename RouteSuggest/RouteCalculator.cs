@@ -24,11 +24,6 @@ public static class RouteCalculator
     public static IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyList<MapPoint>>> CalculatedPaths => _calculatedPaths;
 
     /// <summary>
-    /// 每个配置最多保留的候选路径数。
-    /// </summary>
-    private const int MaxPathsPerConfig = 3;
-
-    /// <summary>
     /// 每个终点状态单次回溯最多生成路径数。
     /// </summary>
     private const int MaxBacktrackPathsPerState = 3;
@@ -148,7 +143,7 @@ public static class RouteCalculator
             {
                 if (!_runStateReflectionMissingLogged)
                 {
-                    RouteSuggestMod.LogWarning("UpdateBestPath fallback failed: RunManager has neither 'CurrentRun' nor 'Run' property.");
+                    RouteSuggestMod.LogWarning($"UpdateBestPath fallback failed: RunManager has neither 'CurrentRun' nor 'Run' property. GameVersion={RouteSuggestMod.GetGameVersionSummary()}");
                     _runStateReflectionMissingLogged = true;
                 }
             }
@@ -183,6 +178,7 @@ public static class RouteCalculator
         var finalResult = new Dictionary<string, IReadOnlyList<IReadOnlyList<MapPoint>>>();
         var configKeyMap = ConfigSnapshotUtility.BuildResultKeyMap(configs);
         var trackedTypeIndex = BuildTrackedTypeIndex(configs);
+        var maxPathsPerConfig = GetMaxPathsPerConfig();
 
         var reachableNodes = CollectReachableNodes(startPoint);
         var topoOrder = BuildTopologicalOrder(reachableNodes, out var hasCycle);
@@ -259,9 +255,9 @@ public static class RouteCalculator
 
             foreach (var candidate in endStateScores)
             {
-                if (uniquePaths.Count >= MaxPathsPerConfig) break;
+                if (uniquePaths.Count >= maxPathsPerConfig) break;
 
-                var remaining = MaxPathsPerConfig - uniquePaths.Count;
+                var remaining = maxPathsPerConfig - uniquePaths.Count;
                 var currentBatch = new List<List<MapPoint>>();
                 BacktrackPaths(
                     candidate.Node,
@@ -281,7 +277,7 @@ public static class RouteCalculator
                     if (!seenPathKeys.Add(pathKey)) continue;
 
                     uniquePaths.Add((path, candidate.Score, pathKey));
-                    if (uniquePaths.Count >= MaxPathsPerConfig) break;
+                    if (uniquePaths.Count >= maxPathsPerConfig) break;
                 }
 
                 if (backtrackSteps >= MaxBacktrackSteps)
@@ -295,7 +291,7 @@ public static class RouteCalculator
                 .OrderByDescending(entry => entry.Score)
                 .ThenBy(entry => entry.PathKey, StringComparer.Ordinal)
                 .Select(entry => entry.Path)
-                .Take(MaxPathsPerConfig)
+                .Take(maxPathsPerConfig)
                 .ToList();
 
             var exportPaths = ConfigManager.CurrentHighlightType == HighlightType.One && selectedPaths.Count > 1
@@ -420,7 +416,16 @@ public static class RouteCalculator
     /// <returns>配置指纹字符串。</returns>
     private static string BuildConfigFingerprint()
     {
-        return ConfigSnapshotUtility.BuildFingerprint(ConfigManager.CurrentHighlightType, ConfigManager.PathConfigs);
+        return ConfigSnapshotUtility.BuildFingerprint(ConfigManager.CurrentHighlightType, ConfigManager.PathConfigs)
+            + ";max_paths=" + GetMaxPathsPerConfig();
+    }
+
+    /// <summary>
+    /// 读取并归一化“每配置最多路径数”。
+    /// </summary>
+    private static int GetMaxPathsPerConfig()
+    {
+        return Math.Max(1, ConfigManager.MaxPathsPerConfig);
     }
 
     /// <summary>
@@ -553,7 +558,27 @@ public static class RouteCalculator
     /// </summary>
     private static string BuildPathIdentity(IReadOnlyList<MapPoint> path)
     {
-        return string.Join("->", path.Select(point => point?.coord.ToString() ?? "null"));
+        if (path == null || path.Count == 0) return "len=0";
+
+        var sb = new System.Text.StringBuilder(path.Count * 24 + 8);
+        sb.Append("len=").Append(path.Count).Append(';');
+
+        foreach (var point in path)
+        {
+            if (point == null)
+            {
+                sb.Append("n;");
+                continue;
+            }
+
+            var coordText = point.coord.ToString() ?? "null";
+            sb.Append(coordText.Length)
+              .Append(':')
+              .Append(coordText)
+              .Append(';');
+        }
+
+        return sb.ToString();
     }
 }
 

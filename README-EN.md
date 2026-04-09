@@ -58,8 +58,9 @@ Example:
 
 ```json
 {
-	"schema_version": 4,
+	"schema_version": 5,
 	"highlight_type": "One",
+	"max_paths_per_config": 3,
 	"path_configs": [
 		{
 			"name": "Safe (Green) / 安全",

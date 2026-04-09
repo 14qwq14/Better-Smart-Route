@@ -69,13 +69,13 @@ public static class MapHighlighter
       }
       else
       {
-        RouteSuggestMod.LogWarning("Reflection initialization failed: field '_paths' not found.");
+        RouteSuggestMod.LogWarning($"Reflection initialization failed: field '_paths' not found. GameVersion={RouteSuggestMod.GetGameVersionSummary()}");
       }
     }
     catch (Exception ex)
     {
       _reflectionInitialized = false;
-      RouteSuggestMod.LogError($"Error initializing reflection: {ex.Message}");
+      RouteSuggestMod.LogError($"Error initializing reflection: {ex.Message}. GameVersion={RouteSuggestMod.GetGameVersionSummary()}");
     }
   }
 
@@ -86,15 +86,14 @@ public static class MapHighlighter
   {
     if (_autoHookStarted) return;
 
-    var tree = Engine.GetMainLoop() as SceneTree;
-    if (tree == null)
+    if (!GlobalFrameWatcher.EnsureStarted())
     {
-      RouteSuggestMod.LogError("Failed to start map auto-hook: SceneTree is not ready");
+      RouteSuggestMod.LogError("Failed to start map auto-hook: GlobalFrameWatcher is not ready");
       return;
     }
 
-    tree.ProcessFrame -= OnProcessFrame;
-    tree.ProcessFrame += OnProcessFrame;
+    GlobalFrameWatcher.FrameTick -= OnProcessFrame;
+    GlobalFrameWatcher.FrameTick += OnProcessFrame;
     _nextInvalidTickCleanupAtMilliseconds = 0;
     _autoHookStarted = true;
   }
@@ -219,7 +218,7 @@ public static class MapHighlighter
       {
         if (!_reflectionFailureNotified)
         {
-          RouteSuggestMod.LogWarning("Path highlighting is temporarily unavailable because reflection metadata is not ready.");
+          RouteSuggestMod.LogWarning($"Path highlighting is temporarily unavailable because reflection metadata is not ready. GameVersion={RouteSuggestMod.GetGameVersionSummary()}");
           _reflectionFailureNotified = true;
         }
 
